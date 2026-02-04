@@ -156,10 +156,20 @@ echo "y" | ufw enable
 
 docker compose up -d
 
+echo "Configuring Tailscale Serve for HTTPS access..."
+tailscale serve --bg --https 443 http://localhost:8091
+tailscale serve --bg --https 8097 http://localhost:8096
+
 SERVER_IP=$(hostname -I | awk '{print $1}')
 echo ""
 echo "Setup complete!"
-echo "Nextcloud:   http://${SERVER_IP}:8080"
-echo "Pi-hole:     http://${SERVER_IP}:8081/admin"
-echo "Jellyfin:    http://${SERVER_IP}:8096"
+echo "Local Access:"
+echo "  Nextcloud:   http://${SERVER_IP}:8080"
+echo "  Pi-hole:     http://${SERVER_IP}:8081/admin"
+echo "  Jellyfin:    http://${SERVER_IP}:8096"
+echo ""
+echo "Tailscale HTTPS Access:"
+echo "  MollySocket: https://${TAILSCALE_DOMAIN}"
+echo "  Jellyfin:    https://${TAILSCALE_DOMAIN}:8097"
+echo ""
 echo "Credentials saved in .env"
