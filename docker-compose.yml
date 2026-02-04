@@ -1,0 +1,158 @@
+services:
+  nextcloud:
+    image: ${NEXTCLOUD_IMAGE:-nextcloud:latest}
+    container_name: nextcloud
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - nextcloud_data:/var/www/html
+    environment:
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS}
+      - OVERWRITEPROTOCOL=http
+      - TZ=${TZ:-UTC}
+    networks:
+      - nextcloud_net
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - clamav
+    mem_limit: 1g
+    cpus: 1.5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  clamav:
+    image: ${CLAMAV_IMAGE:-clamav/clamav:latest}
+    container_name: clamav
+    restart: unless-stopped
+    environment:
+      - CLAMAV_NO_FRESHCLAMD=false
+    networks:
+      - nextcloud_net
+    mem_limit: 2g
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "30", "/etc/clamav/clamd.conf"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  pihole:
+    image: ${PIHOLE_IMAGE:-pihole/pihole:latest}
+    container_name: pihole
+    restart: unless-stopped
+    hostname: pihole
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8081:80/tcp"
+    environment:
+      - TZ=${TZ:-UTC}
+      - WEBPASSWORD=${PIHOLE_WEBPASSWORD}
+      - DNSMASQ_LISTENING=local
+      - PIHOLE_DNS_=9.9.9.9;1.1.1.1
+    volumes:
+      - pihole_config:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+    cap_drop:
+      - ALL
+    networks:
+      - pihole_net
+    dns:
+      - 127.0.0.1
+      - 9.9.9.9
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "dig", "+short", "@127.0.0.1", "pi.hole"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  jellyfin:
+    image: ${JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    volumes:
+      - jellyfin_config:/config
+      - jellyfin_cache:/cache
+      - ${MEDIA_PATH:-/mnt/external/media}:/media:ro
+    environment:
+      - TZ=${TZ:-UTC}
+    networks:
+      - jellyfin_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  mollysocket:
+    image: ${MOLLYSOCKET_IMAGE:-ghcr.io/mollyim/mollysocket:latest}
+    container_name: mollysocket
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    volumes:
+      - mollysocket_data:/data
+    environment:
+      - MOLLY_HOST=0.0.0.0
+      - MOLLY_PORT=8080
+      - MOLLY_VAPID_PRIVKEY=${MOLLY_VAPID_PRIVKEY}
+      - MOLLY_ALLOWED_ENDPOINTS=["https://ntfy.sh"]
+      - MOLLY_ALLOWED_UUIDS=["*"]
+      - RUST_LOG=info
+    networks:
+      - mollysocket_net
+    security_opt:
+      - no-new-privileges:true
+    command: server
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  nextcloud_net:
+    driver: bridge
+  pihole_net:
+    driver: bridge
+  jellyfin_net:
+    driver: bridge
+  mollysocket_net:
+    driver: bridge
+
+volumes:
+  nextcloud_data:
+    name: homeserver_nextcloud_data
+  pihole_config:
+    name: homeserver_pihole_config
+  pihole_dnsmasq:
+    name: homeserver_pihole_dnsmasq
+  jellyfin_config:
+    name: homeserver_jellyfin_config
+  jellyfin_cache:
+    name: homeserver_jellyfin_cache
+  mollysocket_data:
+    name: homeserver_mollysocket_data
