@@ -46,6 +46,11 @@ systemctl restart sshd
 systemctl enable fail2ban
 systemctl start fail2ban
 
+echo "Disabling laptop lid suspend..."
+sed -i 's/^#\?HandleLidSwitch=.*/HandleLidSwitch=ignore/' /etc/systemd/logind.conf
+sed -i 's/^#\?HandleLidSwitchDocked=.*/HandleLidSwitchDocked=ignore/' /etc/systemd/logind.conf
+systemctl restart systemd-logind
+
 if [ ! -f /swapfile ]; then
     echo "Creating 4GB Swap file..."
     fallocate -l 4G /swapfile
