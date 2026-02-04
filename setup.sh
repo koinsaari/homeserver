@@ -91,30 +91,48 @@ if ! tailscale status &> /dev/null; then
     read -p "Press ENTER after authenticating..."
 fi
 
-TS_HOSTNAME=$(tailscale status --json 2>/dev/null | grep -oP '"HostName":"\K[^"]+' || echo "")
-TS_SUFFIX=$(tailscale status --json 2>/dev/null | grep -oP '"MagicDNSSuffix":"\K[^"]+' || echo "ts.net")
-[ -z "$TS_HOSTNAME" ] && read -p "Enter Tailscale hostname: " TS_HOSTNAME
-TAILSCALE_DOMAIN="${TS_HOSTNAME}.${TS_SUFFIX}"
-
 read -p "Timezone (default: UTC): " TZ
 TZ=${TZ:-UTC}
 read -p "LAN subnet (e.g., 192.168.1.0/24): " LAN_SUBNET
 LAN_SUBNET=${LAN_SUBNET:-192.168.1.0/24}
+read -p "Media path (default: /mnt/external/media): " MEDIA_PATH
+MEDIA_PATH=${MEDIA_PATH:-/mnt/external/media}
 
-NC_PASS=$(openssl rand -base64 24 | tr -d "=+/" | head -c 20)
-PH_PASS=$(openssl rand -base64 24 | tr -d "=+/" | head -c 20)
-echo "Generating MollySocket VAPID key..."
-VAPID_KEY=$(docker run --rm ghcr.io/mollyim/mollysocket:latest vapid gen 2>/dev/null | tail -1)
+echo ""
+read -p "Do you have existing credentials from a previous deployment? (y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Please provide your existing credentials:"
+    read -p "Tailscale domain (e.g., https://hostname.ts.net or hostname.ts.net): " TAILSCALE_INPUT
+    TAILSCALE_DOMAIN=$(echo "$TAILSCALE_INPUT" | sed -E 's|https?://||' | sed -E 's|/.*||')
+    read -p "Nextcloud admin username: " NC_USER
+    read -s -p "Nextcloud admin password: " NC_PASS
+    echo
+    read -s -p "Pi-hole web password: " PH_PASS
+    echo
+    read -p "MollySocket VAPID private key: " VAPID_KEY
+    echo ""
+else
+    echo "Generating new credentials..."
+    TS_HOSTNAME=$(tailscale status --json 2>/dev/null | grep -oP '"HostName":"\K[^"]+' || echo "")
+    TS_SUFFIX=$(tailscale status --json 2>/dev/null | grep -oP '"MagicDNSSuffix":"\K[^"]+' || echo "ts.net")
+    [ -z "$TS_HOSTNAME" ] && read -p "Enter Tailscale hostname: " TS_HOSTNAME
+    TAILSCALE_DOMAIN="${TS_HOSTNAME}.${TS_SUFFIX}"
+    NC_USER="admin"
+    NC_PASS=$(openssl rand -base64 24 | tr -d "=+/" | head -c 20)
+    PH_PASS=$(openssl rand -base64 24 | tr -d "=+/" | head -c 20)
+    echo "Generating MollySocket VAPID key..."
+    VAPID_KEY=$(docker run --rm ghcr.io/mollyim/mollysocket:latest vapid gen 2>/dev/null | tail -1)
+fi
 
 cat > .env << EOF
 TZ=$TZ
-TAILSCALE_DOMAIN=$TAILSCALE_DOMAIN
-NEXTCLOUD_ADMIN_USER=admin
+NEXTCLOUD_ADMIN_USER=$NC_USER
 NEXTCLOUD_ADMIN_PASSWORD=$NC_PASS
 NEXTCLOUD_TRUSTED_DOMAINS=localhost $LAN_SUBNET 100.64.0.0/10 $TAILSCALE_DOMAIN
 PIHOLE_WEBPASSWORD=$PH_PASS
 MOLLY_VAPID_PRIVKEY=$VAPID_KEY
-MEDIA_PATH=/mnt/external/media
+MEDIA_PATH=$MEDIA_PATH
 NEXTCLOUD_IMAGE=nextcloud:latest
 PIHOLE_IMAGE=pihole/pihole:latest
 JELLYFIN_IMAGE=jellyfin/jellyfin:latest
