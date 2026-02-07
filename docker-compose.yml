@@ -133,7 +133,7 @@ services:
         retries: 3
 
   ntfy:
-    image: binwiederhier/ntfy
+    image: ${NTFY_IMAGE:-binwiederhier/ntfy}
     container_name: ntfy
     restart: unless-stopped
     command: serve
@@ -167,14 +167,17 @@ networks:
 
 volumes:
   nextcloud_data:
-    name: homeserver_nextcloud_data
+    name: nextcloud_data
   pihole_config:
-    name: homeserver_pihole_config
+    name: pihole_config
   pihole_dnsmasq:
-    name: homeserver_pihole_dnsmasq
+    name: pihole_dnsmasq
   jellyfin_config:
-    name: homeserver_jellyfin_config
+    name: jellyfin_config
   jellyfin_cache:
-    name: homeserver_jellyfin_cache
+    name: jellyfin_cache
   mollysocket_data:
-    name: homeserver_mollysocket_data
+    name: mollysocket_data
+  ntfy_cache:
+    name: ntfy_cache
+    

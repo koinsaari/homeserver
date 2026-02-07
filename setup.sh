@@ -18,8 +18,7 @@ echo "Server Setup"
 echo "================================"
 echo "Installing Docker, Tailscale, and ClamAV."
 echo "WARNING: Ensures 4GB swap exists for ClamAV."
-read -p "Continue? (y/n) " -n 1 -r
-echo
+read -p "Continue? (y/n) " -r
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
@@ -42,7 +41,7 @@ cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sed -i 's/^#\?PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config
 sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' /etc/ssh/sshd_config
-systemctl restart sshd
+systemctl restart ssh
 systemctl enable fail2ban
 systemctl start fail2ban
 
@@ -73,9 +72,21 @@ fi
 if grep -q "#DNSStubListener=yes" /etc/systemd/resolved.conf || grep -q "DNSStubListener=yes" /etc/systemd/resolved.conf; then
     echo "Freeing port 53 for Pi-hole..."
     sed -r -i.orig 's/#?DNSStubListener=yes/DNSStubListener=no/g' /etc/systemd/resolved.conf
+    systemctl restart systemd-resolved
+fi
+
+echo "Ensuring DNS resolution works..."
+if [ -f /etc/resolv.conf ] && [ ! -L /etc/resolv.conf ]; then
+    # If resolv.conf is a regular file managed by Tailscale, add fallback DNS
+    if grep -q "tailscale" /etc/resolv.conf; then
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+    fi
+else
+    # If it's a symlink or doesn't exist, create it with working DNS
     rm -f /etc/resolv.conf
     echo "nameserver 1.1.1.1" > /etc/resolv.conf
-    systemctl restart systemd-resolved
+    echo "nameserver 8.8.8.8" >> /etc/resolv.conf
 fi
 
 if ! command -v tailscale &> /dev/null; then
@@ -99,8 +110,7 @@ read -p "Media path (default: /mnt/external/media): " MEDIA_PATH
 MEDIA_PATH=${MEDIA_PATH:-/mnt/external/media}
 
 echo ""
-read -p "Do you have existing credentials from a previous deployment? (y/n): " -n 1 -r
-echo
+read -p "Do you have existing credentials from a previous deployment? (y/n): " -r
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Please provide your existing credentials:"
     read -p "Tailscale domain (e.g., https://hostname.ts.net or hostname.ts.net): " TAILSCALE_INPUT
