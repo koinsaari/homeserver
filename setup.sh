@@ -127,6 +127,7 @@ fi
 
 cat > .env << EOF
 TZ=$TZ
+TAILSCALE_DOMAIN=$TAILSCALE_DOMAIN
 NEXTCLOUD_ADMIN_USER=$NC_USER
 NEXTCLOUD_ADMIN_PASSWORD=$NC_PASS
 NEXTCLOUD_TRUSTED_DOMAINS=localhost $LAN_SUBNET 100.64.0.0/10 $TAILSCALE_DOMAIN
@@ -154,11 +155,13 @@ ufw allow from "$LAN_SUBNET" to any port 8096 proto tcp comment 'Jellyfin'
 ufw allow in on tailscale0 comment 'Allow-Tailscale-Traffic'
 echo "y" | ufw enable
 
-docker compose up -d
+echo "Configuring Tailscale Serve..."
+tailscale serve reset
+tailscale serve --bg --set-path / http://localhost:8091
+tailscale serve --bg --set-path /ntfy http://localhost:8082
+tailscale serve --bg --https 8097 --set-path / http://localhost:8096
 
-echo "Configuring Tailscale Serve for HTTPS access..."
-tailscale serve --bg --https 443 http://localhost:8091
-tailscale serve --bg --https 8097 http://localhost:8096
+docker compose up -d
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 echo ""
@@ -170,6 +173,7 @@ echo "  Jellyfin:    http://${SERVER_IP}:8096"
 echo ""
 echo "Tailscale HTTPS Access:"
 echo "  MollySocket: https://${TAILSCALE_DOMAIN}"
+echo "  ntfy UI:     https://${TAILSCALE_DOMAIN}/ntfy"
 echo "  Jellyfin:    https://${TAILSCALE_DOMAIN}:8097"
 echo ""
 echo "Credentials saved in .env"

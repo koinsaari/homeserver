@@ -106,32 +106,54 @@ services:
       start_period: 60s
 
   mollysocket:
-    image: ${MOLLYSOCKET_IMAGE:-ghcr.io/mollyim/mollysocket:latest}
-    container_name: mollysocket
+      image: ${MOLLYSOCKET_IMAGE:-ghcr.io/mollyim/mollysocket:latest}
+      container_name: mollysocket
+      restart: unless-stopped
+      ports:
+        - "8091:8080"
+      volumes:
+        - mollysocket_data:/data
+      environment:
+        - MOLLY_HOST=0.0.0.0
+        - MOLLY_PORT=8080
+        - MOLLY_VAPID_PRIVKEY=${MOLLY_VAPID_PRIVKEY}
+        - MOLLY_ALLOWED_ENDPOINTS=["http://ntfy:8082"]
+        - MOLLY_ALLOWED_UUIDS=["*"]
+        - RUST_LOG=info
+      networks:
+        - mollysocket_net
+      security_opt:
+        - no-new-privileges:true
+      command: server
+      mem_limit: 128m
+      healthcheck:
+        test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+        interval: 30s
+        timeout: 5s
+        retries: 3
+
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy
     restart: unless-stopped
-    ports:
-      - "8091:8080"
-    volumes:
-      - mollysocket_data:/data
+    command: serve
     environment:
-      - MOLLY_HOST=0.0.0.0
-      - MOLLY_PORT=8080
-      - MOLLY_VAPID_PRIVKEY=${MOLLY_VAPID_PRIVKEY}
-      - MOLLY_ALLOWED_ENDPOINTS=["https://ntfy.sh"]
-      - MOLLY_ALLOWED_UUIDS=["*"]
-      - RUST_LOG=info
+      - NTFY_BASE_URL=https://${TAILSCALE_DOMAIN}/ntfy
+      - NTFY_LISTEN_HTTP=:8082
+      - NTFY_BEHIND_PROXY=true
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
     networks:
       - mollysocket_net
     security_opt:
       - no-new-privileges:true
-    command: server
     mem_limit: 128m
+    cpus: 0.5
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/v1/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 10s
 
 networks:
   nextcloud_net:
