@@ -2,6 +2,41 @@
 
 set -euo pipefail
 
+if [ "${1:-}" = "--reset" ]; then
+    echo "RESET MODE: This will remove all Docker containers, volumes, and configuration, (except the .env file)"
+    echo "The following will be deleted:"
+    echo "  - All Docker containers (nextcloud, pihole, jellyfin, etc.)"
+    echo "  - All Docker volumes and data"
+    echo "  - Tailscale serve configuration"
+    echo ""
+    read -p "Are you sure you want to continue? (yes/no): " -r
+    if [[ ! $REPLY = "yes" ]]; then
+        echo "Reset cancelled."
+        exit 0
+    fi
+    
+    echo "Resetting..."
+    
+    if command -v docker &> /dev/null; then
+        if [ -f docker-compose.yml ]; then
+            echo "Stopping and removing Docker containers and volumes..."
+            docker compose down -v 2>/dev/null || true
+        fi
+        
+        docker ps -a --format '{{.Names}}' | grep -E '^(nextcloud|pihole|jellyfin|mollysocket|ntfy|clamav)$' | xargs -r docker rm -f 2>/dev/null || true
+        docker volume ls --format '{{.Name}}' | grep -E '^(nextcloud_data|pihole_config|pihole_dnsmasq|jellyfin_config|jellyfin_cache|mollysocket_data|ntfy_cache|homeserver_)' | xargs -r docker volume rm 2>/dev/null || true
+    fi
+    
+    if command -v tailscale &> /dev/null; then
+        echo "Resetting Tailscale serve configuration..."
+        tailscale serve reset 2>/dev/null || true
+    fi
+    
+    echo ""
+    echo "Reset complete!"
+    exit 0
+fi
+
 if [ "$EUID" -ne 0 ]; then
     echo "Please run with sudo: sudo ./setup.sh"
     exit 1
