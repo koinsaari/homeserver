@@ -1,2 +1,7 @@
 .env
 *.log
+debug
+target
+**/*.rs.bk
+.idea/
+.DS_Store
