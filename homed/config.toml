@@ -1,3 +1,10 @@
 [watcher]
 paths = ["/tmp/homed-test"]
 debounce_ms = 5000
+
+[scanner]
+clamscan_path = "/usr/local/bin/clamscan"
+quarantine_dir = "/tmp/homed-quarantine"
+enabled = false
+allowed_extensions = ["mkv", "mp4", "avi", "srt", "sub", "jpg", "jpeg", "png", "heic", "pdf", "epub"]
+block_executables = true

@@ -1,5 +1,6 @@
 mod config;
 mod watcher;
+mod scanner;
 
 use config::Config;
 use tokio::sync::mpsc;
