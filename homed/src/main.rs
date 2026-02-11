@@ -1,21 +1,35 @@
 mod config;
+mod watcher;
 
 use config::Config;
+use tokio::sync::mpsc;
+use watcher::FileEvent;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     println!("🏠 homed - home server daemon");
 
-    let config_path = "config.toml";
+    let config = Config::load("config.toml")?;
+    println!("✅ Configuration loaded successfully!");
+    println!("   Watching {} paths", config.watcher.paths.len());
+    println!("   Debounce: {}ms", config.watcher.debounce_ms);
 
-    match Config::load(config_path) {
-        Ok(config) => {
-            println!("✅ Configuration loaded successfully!");
-            println!("   Watching {} paths", config.watcher.paths.len());
-            println!("   Debounce: {}ms", config.watcher.debounce_ms);
+    let (tx, mut rx) = mpsc::channel(100);
+
+    tokio::spawn(async move {
+        if let Err(e) = watcher::run_watcher(config.watcher, tx).await {
+            eprintln!("Watcher error: {}", e);
         }
-        Err(e) => {
-            eprintln!("❌ Failed to load config: {}", e);
-            eprintln!("   Create a config.toml file to get started");
+    });
+
+    println!("\n👀 Watching for file events... (Ctrl+C to stop)\n");
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            FileEvent::Detected { path, size } => {
+                println!("📁 Detected: {} ({} bytes)", path.display(), size);
+            }
+            _ => {}
         }
     }
 
