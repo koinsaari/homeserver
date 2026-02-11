@@ -1,0 +1,3 @@
+[watcher]
+paths = ["/tmp/homed-test"]
+debounce_ms = 5000
