@@ -56,8 +56,14 @@ pub async fn run_nextcloud(
     config: NextcloudConfig,
     mut rx: mpsc::Receiver<FileEvent>,
     tx: mpsc::Sender<FileEvent>,
+    mut shutdown: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), NextcloudError> {
-    while let Some(event) = rx.recv().await {
+    loop {
+        let event = tokio::select! {
+            Some(event) = rx.recv() => event,
+            _ = shutdown.recv() => break,
+            else => break,
+        };
         let FileEvent::Organized { old_path, new_path } = &event else {
             let _ = tx.send(event).await;
             continue;

@@ -129,8 +129,14 @@ pub async fn run_metadata(
     config: OrganizerConfig,
     mut rx: mpsc::Receiver<FileEvent>,
     tx: mpsc::Sender<FileEvent>,
+    mut shutdown: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), MetadataError> {
-    while let Some(event) = rx.recv().await {
+    loop {
+        let event = tokio::select! {
+            Some(event) = rx.recv() => event,
+            _ = shutdown.recv() => break,
+            else => break,
+        };
         let FileEvent::Scanned { path, clean } = event else {
             continue;
         };

@@ -2,6 +2,8 @@ use crate::config::WatcherConfig;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 use thiserror::Error;
@@ -40,9 +42,12 @@ pub enum WatcherError {
 pub async fn run_watcher(
     config: WatcherConfig,
     tx: mpsc::Sender<FileEvent>,
+    mut shutdown: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), WatcherError> {
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
     let paths_to_watch = config.paths.clone();
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let thread_stop = stop_flag.clone();
 
     // Notify uses blocking threads so spawn a dedicated bridge thread
     // to prevent blocking the Tokio reactor
@@ -65,9 +70,12 @@ pub async fn run_watcher(
                 .expect("Failed to watch path");
         }
 
-        while let Ok(event) = std_rx.recv() {
+        while let Ok(event) = std_rx.recv_timeout(Duration::from_secs(1)) {
+            if thread_stop.load(Ordering::Relaxed) {
+                break;
+            }
             if notify_tx.blocking_send(event).is_err() {
-                break; // Receiver dropped, likely shutdown
+                break;
             }
         }
     });
@@ -118,6 +126,23 @@ pub async fn run_watcher(
                         }
                     }
                 }
+            }
+
+            _ = shutdown.recv() => {
+                stop_flag.store(true, Ordering::Relaxed);
+                eprintln!("Watcher shutting down, draining {} pending files...", pending_files.len());
+
+                // Emit any files that are already debounced before exiting
+                for (path, _) in pending_files.drain() {
+                    if let Ok(metadata) = tokio::fs::metadata(&path).await {
+                        let _ = tx.send(FileEvent::Detected {
+                            path: path.clone(),
+                            size: metadata.len(),
+                        }).await;
+                    }
+                }
+
+                return Ok(());
             }
         }
     }

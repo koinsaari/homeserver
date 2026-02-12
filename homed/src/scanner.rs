@@ -65,10 +65,16 @@ pub async fn run_scanner(
     config: ScannerConfig,
     mut rx: mpsc::Receiver<FileEvent>,
     tx: mpsc::Sender<FileEvent>,
+    mut shutdown: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), ScannerError> {
     tokio::fs::create_dir_all(&config.quarantine_dir).await?;
 
-    while let Some(event) = rx.recv().await {
+    loop {
+        let event = tokio::select! {
+            Some(event) = rx.recv() => event,
+            _ = shutdown.recv() => break,
+            else => break,
+        };
         let FileEvent::Detected { path, size: _ } = event else {
             continue;
         };

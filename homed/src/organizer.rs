@@ -103,8 +103,14 @@ pub async fn run_organizer(
     config: OrganizerConfig,
     mut rx: mpsc::Receiver<FileEvent>,
     tx: mpsc::Sender<FileEvent>,
+    mut shutdown: tokio::sync::broadcast::Receiver<()>,
 ) -> Result<(), OrganizerError> {
-    while let Some(event) = rx.recv().await {
+    loop {
+        let event = tokio::select! {
+            Some(event) = rx.recv() => event,
+            _ = shutdown.recv() => break,
+            else => break,
+        };
         let FileEvent::Enriched { path, media_type, datetime } = event else {
             continue;
         };
