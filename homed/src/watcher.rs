@@ -8,6 +8,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tracing::info;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MediaType {
@@ -130,7 +131,7 @@ pub async fn run_watcher(
 
             _ = shutdown.recv() => {
                 stop_flag.store(true, Ordering::Relaxed);
-                eprintln!("Watcher shutting down, draining {} pending files...", pending_files.len());
+                info!(pending = pending_files.len(), "watcher shutting down, draining pending files");
 
                 // Emit any files that are already debounced before exiting
                 for (path, _) in pending_files.drain() {

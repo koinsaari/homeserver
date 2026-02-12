@@ -2,6 +2,7 @@ use std::path::Path;
 
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tracing::warn;
 
 use crate::config::NextcloudConfig;
 use crate::watcher::FileEvent;
@@ -38,10 +39,10 @@ async fn run_occ_scan(config: &NextcloudConfig, path: &str) -> Result<(), Nextcl
         .await?;
 
     if !output.status.success() {
-        eprintln!(
-            "Warning: occ files:scan failed (exit code {:?}): {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr)
+        warn!(
+            exit_code = ?output.status.code(),
+            stderr = %String::from_utf8_lossy(&output.stderr),
+            "occ files:scan failed"
         );
     }
 
@@ -74,19 +75,12 @@ pub async fn run_nextcloud(
         }
 
         let Some(internal_path) = translate_path(&new_path, &config) else {
-            eprintln!(
-                "Warning: Could not translate path {} to Nextcloud internal path",
-                new_path.display()
-            );
+            warn!(path = %new_path.display(), "could not translate path to nextcloud internal path");
             continue;
         };
 
         if let Err(e) = run_occ_scan(&config, &internal_path).await {
-            eprintln!(
-                "Warning: Nextcloud scan failed for {}: {}",
-                new_path.display(),
-                e
-            );
+            warn!(path = %new_path.display(), error = %e, "nextcloud scan failed");
         }
 
         // Scan old path's parent to remove ghost entries from Nextcloud DB
@@ -94,11 +88,7 @@ pub async fn run_nextcloud(
             .and_then(|p| translate_path(p, &config))
         {
             if let Err(e) = run_occ_scan(&config, &old_internal).await {
-                eprintln!(
-                    "Warning: Nextcloud cleanup scan failed for {}: {}",
-                    old_path.parent().unwrap().display(),
-                    e
-                );
+                warn!(path = %old_internal, error = %e, "nextcloud cleanup scan failed");
             }
         }
 

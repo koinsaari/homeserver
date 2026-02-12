@@ -7,19 +7,24 @@ mod watcher;
 
 use config::Config;
 use tokio::sync::{broadcast, mpsc};
+use tracing::{info, warn, error};
 use watcher::FileEvent;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("🏠 homed - home server daemon");
+    tracing_subscriber::fmt::init();
+
+    info!("homed starting up");
 
     let config = Config::load("config.toml")?;
-    println!("✅ Configuration loaded successfully!");
-    println!("   Watching {} paths", config.watcher.paths.len());
-    println!("   Debounce: {}ms", config.watcher.debounce_ms);
-    println!("   Scanner: {}", if config.scanner.enabled { "enabled" } else { "disabled" });
-    println!("   Organizer: {}", if config.organizer.enabled { "enabled" } else { "disabled" });
-    println!("   Nextcloud: {}", if config.nextcloud.enabled { "enabled" } else { "disabled" });
+    info!(
+        paths = config.watcher.paths.len(),
+        debounce_ms = config.watcher.debounce_ms,
+        scanner = config.scanner.enabled,
+        organizer = config.organizer.enabled,
+        nextcloud = config.nextcloud.enabled,
+        "configuration loaded"
+    );
 
     let (shutdown_tx, _) = broadcast::channel(1);
 
@@ -34,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
             if let Err(e) = watcher::run_watcher(config.watcher, watcher_tx, shutdown_rx).await {
-                eprintln!("Watcher error: {}", e);
+                error!(error = %e, "watcher failed");
             }
         }
     });
@@ -44,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
             if let Err(e) = scanner::run_scanner(config.scanner, watcher_rx, scanner_tx, shutdown_rx).await {
-                eprintln!("Scanner error: {}", e);
+                error!(error = %e, "scanner failed");
             }
         }
     });
@@ -54,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
             if let Err(e) = metadata::run_metadata(config.organizer, scanner_rx, metadata_tx, shutdown_rx).await {
-                eprintln!("Metadata error: {}", e);
+                error!(error = %e, "metadata failed");
             }
         }
     });
@@ -64,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
             if let Err(e) = organizer::run_organizer(config.organizer, metadata_rx, organizer_tx, shutdown_rx).await {
-                eprintln!("Organizer error: {}", e);
+                error!(error = %e, "organizer failed");
             }
         }
     });
@@ -74,36 +79,39 @@ async fn main() -> anyhow::Result<()> {
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
             if let Err(e) = nextcloud::run_nextcloud(config.nextcloud, organizer_rx, nextcloud_tx, shutdown_rx).await {
-                eprintln!("Nextcloud error: {}", e);
+                error!(error = %e, "nextcloud failed");
             }
         }
     });
 
-    println!("\n👀 Watching for file events... (Ctrl+C to stop)\n");
+    info!("watching for file events");
 
     loop {
         tokio::select! {
             Some(event) = output_rx.recv() => {
                 match event {
                     FileEvent::Organized { old_path, new_path } => {
-                        println!("📦 Organized: {} → {}", old_path.display(), new_path.display());
+                        info!(
+                            from = %old_path.display(),
+                            to = %new_path.display(),
+                            "file organized"
+                        );
                     }
                     FileEvent::Failed { path, error } => {
-                        println!("❌ Failed: {} - {}", path.display(), error);
+                        warn!(path = %path.display(), error, "processing failed");
                     }
                     _ => {}
                 }
             }
 
             _ = tokio::signal::ctrl_c() => {
-                eprintln!("\n🛑 Received shutdown signal, draining pipeline...");
+                info!("received shutdown signal, draining pipeline");
                 shutdown_tx.send(()).ok();
                 break;
             }
         }
     }
 
-    // Wait for all actors to finish work
     let shutdown_timeout = std::time::Duration::from_secs(30);
     let all_actors = async {
         let _ = watcher_handle.await;
@@ -114,9 +122,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if tokio::time::timeout(shutdown_timeout, all_actors).await.is_err() {
-        eprintln!("⚠️  Shutdown timed out after 30s, forcing exit");
+        warn!("shutdown timed out after 30s, forcing exit");
     } else {
-        eprintln!("✅ Shutdown complete");
+        info!("shutdown complete");
     }
 
     Ok(())

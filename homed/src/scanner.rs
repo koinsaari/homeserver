@@ -3,6 +3,7 @@ use crate::watcher::FileEvent;
 use std::path::Path;
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tracing::error;
 
 #[derive(Debug, Error)]
 pub enum ScannerError {
@@ -139,6 +140,6 @@ async fn quarantine_file(path: &Path, quarantine_dir: &Path) {
     let quarantine_path = quarantine_dir.join(filename);
 
     if let Err(e) = tokio::fs::rename(path, &quarantine_path).await {
-        eprintln!("Failed to quarantine {}: {}", path.display(), e);
+        error!(path = %path.display(), error = %e, "failed to quarantine file");
     }
 }

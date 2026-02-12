@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Datelike, FixedOffset};
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tracing::warn;
 
 use crate::config::OrganizerConfig;
 use crate::watcher::{FileEvent, MediaType};
@@ -94,7 +95,7 @@ async fn apply_ownership(path: &Path, owner: &str, group: &str) {
         .await;
 
     if let Err(e) = result {
-        eprintln!("Warning: chown failed for {}: {}", path.display(), e);
+        warn!(path = %path.display(), error = %e, "chown failed");
     }
 }
 
