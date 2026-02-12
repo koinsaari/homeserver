@@ -107,7 +107,7 @@ pub async fn run_watcher(
                 for path in ready_paths {
                     pending_files.remove(&path);
 
-                    if let Ok(metadata) = std::fs::metadata(&path) {
+                    if let Ok(metadata) = tokio::fs::metadata(&path).await {
                         let event = FileEvent::Detected {
                             path: path.clone(),
                             size: metadata.len(),

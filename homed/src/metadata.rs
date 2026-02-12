@@ -89,8 +89,8 @@ fn extract_datetime_from_filename(path: &Path) -> Option<DateTime<FixedOffset>> 
     None
 }
 
-fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
-    let metadata = std::fs::metadata(path).ok()?;
+async fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
+    let metadata = tokio::fs::metadata(path).await.ok()?;
     let mtime = metadata.modified().ok()?;
     let utc: DateTime<Utc> = mtime.into();
     Some(Utc.fix().from_utc_datetime(&utc.naive_utc()))
@@ -98,15 +98,21 @@ fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
 
 /// Extracts the best available datetime by EXIF/track metadata ->
 /// filename pattern -> file modification time.
-fn extract_best_datetime(path: &Path, media_type: MediaType) -> Option<DateTime<FixedOffset>> {
+async fn extract_best_datetime(path: &Path, media_type: MediaType) -> Option<DateTime<FixedOffset>> {
     let exif_result = match media_type {
         MediaType::Photo => extract_photo_datetime(path),
         MediaType::Video => extract_video_datetime(path),
     };
 
-    exif_result
-        .or_else(|| extract_datetime_from_filename(path))
-        .or_else(|| fallback_to_mtime(path))
+    if let Some(dt) = exif_result {
+        return Some(dt);
+    }
+
+    if let Some(dt) = extract_datetime_from_filename(path) {
+        return Some(dt);
+    }
+
+    fallback_to_mtime(path).await
 }
 
 #[derive(Debug, Error)]
@@ -141,7 +147,7 @@ pub async fn run_metadata(
             continue;
         };
 
-        let Some(datetime) = extract_best_datetime(&path, media_type) else {
+        let Some(datetime) = extract_best_datetime(&path, media_type).await else {
             let _ = tx.send(FileEvent::Failed {
                 path,
                 error: "Could not extract datetime".to_string(),
