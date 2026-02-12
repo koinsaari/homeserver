@@ -32,7 +32,7 @@ fn translate_path(host_path: &Path, config: &NextcloudConfig) -> Option<String> 
 /// Runs `occ files:scan --path=<path>` via docker exec.
 async fn run_occ_scan(config: &NextcloudConfig, path: &str) -> Result<(), NextcloudError> {
     let output = tokio::process::Command::new("docker")
-        .args(["exec", &config.container_name, "php", "occ", "files:scan"])
+        .args(["exec", "--user", "www-data", &config.container_name, "php", "occ", "files:scan"])
         .arg(format!("--path={}", path))
         .output()
         .await?;
