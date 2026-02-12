@@ -16,3 +16,10 @@ photo_prefix = "IMG"
 video_prefix = "VID"
 photo_extensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "raw", "cr2", "nef", "arw", "dng"]
 video_extensions = ["mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm"]
+
+[nextcloud]
+enabled = false
+container_name = "nextcloud"
+username = "admin"
+data_dir = "/tmp/homed-organized"
+internal_prefix = "/admin/files/Photos"

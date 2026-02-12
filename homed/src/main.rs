@@ -1,5 +1,6 @@
 mod config;
 mod metadata;
+mod nextcloud;
 mod organizer;
 mod watcher;
 mod scanner;
@@ -18,11 +19,13 @@ async fn main() -> anyhow::Result<()> {
     println!("   Debounce: {}ms", config.watcher.debounce_ms);
     println!("   Scanner: {}", if config.scanner.enabled { "enabled" } else { "disabled" });
     println!("   Organizer: {}", if config.organizer.enabled { "enabled" } else { "disabled" });
+    println!("   Nextcloud: {}", if config.nextcloud.enabled { "enabled" } else { "disabled" });
 
     let (watcher_tx, watcher_rx) = mpsc::channel(100);
     let (scanner_tx, scanner_rx) = mpsc::channel(100);
     let (metadata_tx, metadata_rx) = mpsc::channel(100);
-    let (organizer_tx, mut output_rx) = mpsc::channel(100);
+    let (organizer_tx, organizer_rx) = mpsc::channel(100);
+    let (nextcloud_tx, mut output_rx) = mpsc::channel(100);
 
     tokio::spawn({
         let config = config.clone();
@@ -56,6 +59,15 @@ async fn main() -> anyhow::Result<()> {
         async move {
             if let Err(e) = organizer::run_organizer(config.organizer, metadata_rx, organizer_tx).await {
                 eprintln!("Organizer error: {}", e);
+            }
+        }
+    });
+
+    tokio::spawn({
+        let config = config.clone();
+        async move {
+            if let Err(e) = nextcloud::run_nextcloud(config.nextcloud, organizer_rx, nextcloud_tx).await {
+                eprintln!("Nextcloud error: {}", e);
             }
         }
     });

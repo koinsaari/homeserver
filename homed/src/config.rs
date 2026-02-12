@@ -19,6 +19,7 @@ pub struct Config {
     pub watcher: WatcherConfig,
     pub scanner: ScannerConfig,
     pub organizer: OrganizerConfig,
+    pub nextcloud: NextcloudConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -44,6 +45,15 @@ pub struct OrganizerConfig {
     pub video_prefix: String,
     pub photo_extensions: Vec<String>,
     pub video_extensions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct NextcloudConfig {
+    pub enabled: bool,
+    pub container_name: String,
+    pub username: String,
+    pub data_dir: PathBuf,
+    pub internal_prefix: String,
 }
 
 impl Config {
@@ -105,6 +115,13 @@ mod tests {
                 photo_extensions: vec![],
                 video_extensions: vec![],
             },
+            nextcloud: NextcloudConfig {
+                enabled: false,
+                container_name: "nextcloud".to_string(),
+                username: "admin".to_string(),
+                data_dir: Default::default(),
+                internal_prefix: "/admin/files".to_string(),
+            },
         };
 
         assert!(config.validate().is_ok());
@@ -131,6 +148,13 @@ mod tests {
                 video_prefix: "VID".to_string(),
                 photo_extensions: vec![],
                 video_extensions: vec![],
+            },
+            nextcloud: NextcloudConfig {
+                enabled: false,
+                container_name: "nextcloud".to_string(),
+                username: "admin".to_string(),
+                data_dir: Default::default(),
+                internal_prefix: "/admin/files".to_string(),
             },
         };
 
