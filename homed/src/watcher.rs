@@ -7,11 +7,22 @@ use tokio::time::Instant;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
+#[derive(Debug, Clone, Copy)]
+pub enum MediaType {
+    Photo,
+    Video,
+}
+
 /// Events representing the file lifecycle within the pipeline.
 #[derive(Debug, Clone)]
 pub enum FileEvent {
     Detected { path: PathBuf, size: u64 },
     Scanned { path: PathBuf, clean: bool },
+    Enriched {
+        path: PathBuf,
+        media_type: MediaType,
+        datetime: chrono::DateTime<chrono::FixedOffset>,
+    },
     Organized { old_path: PathBuf, new_path: PathBuf },
     Failed { path: PathBuf, error: String },
 }

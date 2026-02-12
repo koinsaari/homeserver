@@ -18,6 +18,7 @@ pub enum ConfigError {
 pub struct Config {
     pub watcher: WatcherConfig,
     pub scanner: ScannerConfig,
+    pub organizer: OrganizerConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -33,6 +34,16 @@ pub struct ScannerConfig {
     pub enabled: bool,
     pub allowed_extensions: Vec<String>,
     pub block_executables: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OrganizerConfig {
+    pub enabled: bool,
+    pub photos_dir: PathBuf,
+    pub photo_prefix: String,
+    pub video_prefix: String,
+    pub photo_extensions: Vec<String>,
+    pub video_extensions: Vec<String>,
 }
 
 impl Config {
@@ -86,6 +97,14 @@ mod tests {
                 allowed_extensions: vec![],
                 block_executables: false,
             },
+            organizer: OrganizerConfig {
+                enabled: false,
+                photos_dir: Default::default(),
+                photo_prefix: "IMG".to_string(),
+                video_prefix: "VID".to_string(),
+                photo_extensions: vec![],
+                video_extensions: vec![],
+            },
         };
 
         assert!(config.validate().is_ok());
@@ -104,6 +123,14 @@ mod tests {
                 enabled: false,
                 allowed_extensions: vec![],
                 block_executables: false,
+            },
+            organizer: OrganizerConfig {
+                enabled: false,
+                photos_dir: Default::default(),
+                photo_prefix: "IMG".to_string(),
+                video_prefix: "VID".to_string(),
+                photo_extensions: vec![],
+                video_extensions: vec![],
             },
         };
 
