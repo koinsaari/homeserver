@@ -58,7 +58,7 @@ pub async fn run_nextcloud(
     tx: mpsc::Sender<FileEvent>,
 ) -> Result<(), NextcloudError> {
     while let Some(event) = rx.recv().await {
-        let FileEvent::Organized { old_path: _, new_path } = &event else {
+        let FileEvent::Organized { old_path, new_path } = &event else {
             let _ = tx.send(event).await;
             continue;
         };
@@ -81,6 +81,19 @@ pub async fn run_nextcloud(
                 new_path.display(),
                 e
             );
+        }
+
+        // Scan old path's parent to remove ghost entries from Nextcloud DB
+        if let Some(old_internal) = old_path.parent()
+            .and_then(|p| translate_path(p, &config))
+        {
+            if let Err(e) = run_occ_scan(&config, &old_internal).await {
+                eprintln!(
+                    "Warning: Nextcloud cleanup scan failed for {}: {}",
+                    old_path.parent().unwrap().display(),
+                    e
+                );
+            }
         }
 
         let _ = tx.send(event).await;

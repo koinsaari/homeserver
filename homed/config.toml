@@ -16,6 +16,8 @@ photo_prefix = "IMG"
 video_prefix = "VID"
 photo_extensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "raw", "cr2", "nef", "arw", "dng"]
 video_extensions = ["mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm"]
+# file_owner = "www-data"
+# file_group = "www-data"
 
 [nextcloud]
 enabled = false

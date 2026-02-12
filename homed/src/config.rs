@@ -45,6 +45,8 @@ pub struct OrganizerConfig {
     pub video_prefix: String,
     pub photo_extensions: Vec<String>,
     pub video_extensions: Vec<String>,
+    pub file_owner: Option<String>,
+    pub file_group: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -114,6 +116,8 @@ mod tests {
                 video_prefix: "VID".to_string(),
                 photo_extensions: vec![],
                 video_extensions: vec![],
+                file_owner: None,
+                file_group: None,
             },
             nextcloud: NextcloudConfig {
                 enabled: false,
@@ -148,6 +152,8 @@ mod tests {
                 video_prefix: "VID".to_string(),
                 photo_extensions: vec![],
                 video_extensions: vec![],
+                file_owner: None,
+                file_group: None,
             },
             nextcloud: NextcloudConfig {
                 enabled: false,

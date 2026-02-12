@@ -83,6 +83,21 @@ async fn move_safe(source: &Path, dest: &Path) -> Result<(), OrganizerError> {
     Ok(())
 }
 
+/// Changes file ownership to allow Nextcloud (www-data) to read it.
+async fn apply_ownership(path: &Path, owner: &str, group: &str) {
+    let owner_group = format!("{}:{}", owner, group);
+
+    let result = tokio::process::Command::new("chown")
+        .arg(&owner_group)
+        .arg(path)
+        .output()
+        .await;
+
+    if let Err(e) = result {
+        eprintln!("Warning: chown failed for {}: {}", path.display(), e);
+    }
+}
+
 /// Organizes files into date-based directories with timestamp naming.
 pub async fn run_organizer(
     config: OrganizerConfig,
@@ -108,6 +123,10 @@ pub async fn run_organizer(
 
         match move_safe(&path, &target).await {
             Ok(()) => {
+                if let (Some(owner), Some(group)) = (&config.file_owner, &config.file_group) {
+                    apply_ownership(&target, owner, group).await;
+                }
+
                 let _ = tx.send(FileEvent::Organized {
                     old_path: path,
                     new_path: target,
