@@ -90,6 +90,24 @@ async fn main() -> anyhow::Result<()> {
         tokio::select! {
             Some(event) = output_rx.recv() => {
                 match event {
+                    FileEvent::Detected { path, size } => {
+                        info!(path = %path.display(), size, "file detected");
+                    }
+                    FileEvent::Scanned { path, clean } => {
+                        if clean {
+                            info!(path = %path.display(), "scan passed");
+                        } else {
+                            warn!(path = %path.display(), "malware detected");
+                        }
+                    }
+                    FileEvent::Enriched { path, media_type, datetime } => {
+                        info!(
+                            path = %path.display(),
+                            media_type = ?media_type,
+                            datetime = %datetime,
+                            "metadata extracted"
+                        );
+                    }
                     FileEvent::Organized { old_path, new_path } => {
                         info!(
                             from = %old_path.display(),
@@ -100,7 +118,6 @@ async fn main() -> anyhow::Result<()> {
                     FileEvent::Failed { path, error } => {
                         warn!(path = %path.display(), error, "processing failed");
                     }
-                    _ => {}
                 }
             }
 
