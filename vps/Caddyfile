@@ -1,0 +1,31 @@
+{
+	email {$ACME_EMAIL}
+}
+
+netbird.{$DOMAIN} {
+	reverse_proxy /nb-* netbird-dashboard:80
+	reverse_proxy /api/* netbird-management:80
+
+	reverse_proxy /management.ManagementService/* netbird-management:33073 {
+		transport http {
+			versions h2c
+		}
+	}
+
+	reverse_proxy /signalexchange.SignalExchange/* netbird-signal:10000 {
+		transport http {
+			versions h2c
+		}
+	}
+
+	reverse_proxy /idp/* netbird-management:80
+	reverse_proxy /* netbird-dashboard:80
+}
+
+ntfy.{$DOMAIN} {
+	reverse_proxy ntfy:8082
+}
+
+molly.{$DOMAIN} {
+	reverse_proxy mollysocket:8091
+}

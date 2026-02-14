@@ -1,0 +1,131 @@
+services:
+  netbird-management:
+    image: netbirdio/management:latest
+    container_name: netbird-management
+    restart: unless-stopped
+    environment:
+      NETBIRD_MGMT_API_ADDR: ":33073"
+      NETBIRD_MGMT_HTTP_ADDR: ":80"
+      NETBIRD_STORE_ENGINE: sqlite
+      NETBIRD_EMBEDDED_IDP_ENABLED: "true"
+      NETBIRD_EMBEDDED_IDP_DATA_DIR: "/var/lib/netbird/idp"
+      NETBIRD_ENCRYPTION_KEY: "${NETBIRD_ENCRYPTION_KEY}"
+      NETBIRD_IDP_ISSUER_URL: "https://netbird.${DOMAIN}/idp"
+      NETBIRD_AUTH_OIDC_CONFIGURATION_ENDPOINT: "https://netbird.${DOMAIN}/idp/.well-known/openid-configuration"
+      NETBIRD_AUTH_AUDIENCE: "netbird"
+      NETBIRD_SIGNAL_ENDPOINT: "netbird-signal:10000"
+      NETBIRD_RELAY_ADDRESSES: "rel://${VPS_IP}:3478"
+      NETBIRD_MGMT_SINGLE_ACCOUNT_MODE_DOMAIN: "${DOMAIN}"
+      NETBIRD_DNS_DOMAIN: "${DOMAIN}"
+    volumes:
+      - netbird_data:/var/lib/netbird
+    networks:
+      - internal
+    mem_limit: 200m
+
+  netbird-signal:
+    image: netbirdio/signal:latest
+    container_name: netbird-signal
+    restart: unless-stopped
+    environment:
+      NETBIRD_SIGNAL_PORT: "10000"
+    networks:
+      - internal
+    mem_limit: 100m
+
+  netbird-relay:
+    image: netbirdio/relay:latest
+    container_name: netbird-relay
+    restart: unless-stopped
+    environment:
+      NB_LOG_LEVEL: "info"
+      NB_LISTEN_ADDRESS: ":3478"
+      NB_EXPOSED_ADDRESS: "${VPS_IP}:3478"
+      NB_AUTH_SECRET: "${NETBIRD_RELAY_SECRET}"
+    ports:
+      - "3478:3478"
+    networks:
+      - internal
+    mem_limit: 100m
+
+  netbird-dashboard:
+    image: netbirdio/dashboard:latest
+    container_name: netbird-dashboard
+    restart: unless-stopped
+    environment:
+      NETBIRD_MGMT_API_ENDPOINT: "https://netbird.${DOMAIN}"
+      NETBIRD_MGMT_GRPC_API_ENDPOINT: "https://netbird.${DOMAIN}"
+      AUTH_AUTHORITY: "https://netbird.${DOMAIN}/idp"
+      AUTH_CLIENT_ID: "netbird"
+      AUTH_AUDIENCE: "netbird"
+    networks:
+      - internal
+    mem_limit: 50m
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: "https://ntfy.${DOMAIN}"
+      NTFY_LISTEN_HTTP: ":8082"
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_AUTH_DEFAULT_ACCESS: "deny-all"
+      NTFY_AUTH_FILE: "/var/lib/ntfy/auth.db"
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+      - ntfy_cache:/var/cache/ntfy
+    networks:
+      - internal
+    mem_limit: 64m
+
+  mollysocket:
+    image: ghcr.io/mollyim/mollysocket:latest
+    container_name: mollysocket
+    restart: unless-stopped
+    command: server
+    environment:
+      MOLLY_HOST: "0.0.0.0"
+      MOLLY_PORT: "8091"
+      MOLLY_URL: "https://molly.${DOMAIN}"
+      MOLLY_VAPID_PRIVKEY: "${MOLLY_VAPID_PRIVKEY}"
+      MOLLY_ALLOWED_ENDPOINTS: '["https://ntfy.${DOMAIN}"]'
+      MOLLY_ALLOWED_UUIDS: '["*"]'
+    volumes:
+      - mollysocket_data:/data
+    networks:
+      - internal
+    mem_limit: 64m
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    mem_limit: 50m
+    depends_on:
+      - netbird-management
+      - netbird-dashboard
+      - ntfy
+      - mollysocket
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  netbird_data:
+  ntfy_data:
+  ntfy_cache:
+  mollysocket_data:
+  caddy_data:
+  caddy_config:
