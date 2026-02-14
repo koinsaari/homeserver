@@ -88,9 +88,16 @@ if [ "$CURRENT_USER" = "root" ] && [ "$NEW_USER" != "root" ]; then
         echo "Disabling root SSH login..."
         sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
         systemctl restart ssh
-        echo "WARNING: Root SSH login disabled. Test access with $NEW_USER before closing this session!"
+        echo "Root SSH login disabled."
     fi
 fi
+
+echo "Initializing stack directories and network..."
+docker network create proxy-net || true
+
+mkdir -p ntfy_data ntfy_cache mollysocket_data caddy_data caddy_config
+chown -R 1000:1000 ntfy_data ntfy_cache caddy_data caddy_config
+chmod -R 700 mollysocket_data
 
 echo ""
 echo "Setup complete!"

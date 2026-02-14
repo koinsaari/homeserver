@@ -1,156 +1,91 @@
-# VPS Deployment
+# VPS Stack: NetBird, ntfy, MollySocket
 
-NetBird, ntfy, and MollySocket stack for public VPS deployment.
+Hardened deployment for a private communication stack using Caddy for automatic TLS.
 
-## Prerequisites
+## Deployment
 
-- VPS with 2GB+ RAM (tested on Hetzner CX21)
-- Domain name with DNS access
-- SSH access to VPS
+### 1. DNS Configuration
+Point A records to your VPS IP:
+- `netbird.yourdomain.com`
+- `ntfy.yourdomain.com`
+- `molly.yourdomain.com`
 
-## Files
-
-- `docker-compose.yml` - Service definitions (NetBird, ntfy, MollySocket, Caddy)
-- `Caddyfile` - Reverse proxy config with automatic HTTPS
-- `.env.example` - Environment variables template
-- `setup.sh` - VPS hardening and Docker installation script
-
-## Deployment Steps
-
-### 1. Configure DNS
-
-Point these A records to your VPS IP:
-```
-netbird.yourdomain.com  → VPS_IP
-ntfy.yourdomain.com     → VPS_IP
-molly.yourdomain.com    → VPS_IP
-```
-
-Wait 5-10 minutes for DNS propagation.
-
-### 2. Run Setup Script
-
-SSH to VPS and run:
+### 2. Initial Setup
+Run as root or with sudo:
 ```bash
 bash setup.sh
 ```
 
-This installs Docker, configures UFW firewall, and optionally creates a non-root user.
+This script performs:
+- System updates and package installation
+- Non-root user creation (optional)
+- Docker installation
+- UFW firewall configuration (ports: 22, 80, 443, 3478)
+- SSH hardening (disables root login if non-root user created)
+- Docker network (`proxy-net`) creation
+- Data directory initialization with proper permissions
 
-### 3. Deploy Services
+**Important**: If running as non-root user, you must log out and back in after setup for docker group changes to take effect.
 
-Copy files to VPS:
+### 3. NetBird Installation
 ```bash
-# On local machine:
-scp -r vps/* user@vps-ip:/opt/homeserver/
+curl -fsSL https://github.com/netbirdio/netbird/releases/latest/download/getting-started.sh | bash
 ```
+Select **[4] External Caddy** and specify `proxy-net` as the network.
 
-On VPS:
+### 4. Environment Configuration
+Copy and configure environment variables:
 ```bash
-cd /opt/homeserver
-
-# Create .env from template
 cp .env.example .env
-
-# Generate secrets
-NETBIRD_ENCRYPTION_KEY=$(openssl rand -base64 32)
-NETBIRD_RELAY_SECRET=$(openssl rand -base64 32)
-MOLLY_VAPID_PRIVKEY=$(docker run --rm ghcr.io/mollyim/mollysocket:latest vapid gen)
-
-# Edit .env and fill in:
-# - DOMAIN
-# - VPS_IP
-# - ACME_EMAIL
-# - Generated secrets above
-
-# Start services
-docker-compose up -d
-
-# Watch logs
-docker-compose logs -f
 ```
 
-### 4. Post-Deployment Configuration
+Required variables:
+- `DOMAIN`: Your base domain (e.g., `example.com`)
+- `ACME_EMAIL`: Email for Let's Encrypt certificates
+- `MOLLY_VAPID_PRIVKEY`: Generate in next step
 
-#### Create ntfy Admin User
+### 5. VAPID Keys
+If you don't already have a VAPID key from an earlier deployment, generate one:
+```bash
+docker run --rm ghcr.io/mollyim/mollysocket:latest mollysocket-tools generate-vapid
+```
+Add the private key to `MOLLY_VAPID_PRIVKEY` in `.env`.
 
-**IMPORTANT:** ntfy requires authentication. Create an admin user:
+### 6. Start Services
+```bash
+docker compose up -d
+```
+
+### 7. Configure ntfy Authentication
+Create an admin user (required since default access is deny-all):
+```bash
+docker exec -it ntfy ntfy user add --role=admin username
+```
+
+### 8. Enable UnifiedPush Support
+To allow MollySocket to send notifications to your phone while keeping the rest of the server private, grant write-only access to UnifiedPush topics:
 
 ```bash
-docker exec -it ntfy ntfy user add --role=admin your_username
+docker exec -it ntfy ntfy access '*' 'up*' write-only
 ```
 
-You'll be prompted for a password. Use this username/password for ntfy clients.
+## Security Features
 
-#### Create NetBird Account
+- **Firewall**: UFW blocks all incoming except SSH (22), HTTP (80), HTTPS (443), and NetBird relay (3478)
+- **Containers**: All run with 256MB memory limits and `no-new-privileges:true`
+- **User Isolation**: ntfy runs as non-root user (1000:1000)
+- **Capability Dropping**: Caddy drops all capabilities except `NET_BIND_SERVICE`
+- **Authentication**: ntfy requires user authentication (deny-all default)
+- **SSH Hardening**: Root login disabled when non-root user is created
+- **Data Persistence**: All volumes use local bind mounts for direct filesystem access
 
-1. Visit `https://netbird.yourdomain.com`
-2. Click "Setup" (first-time only)
-3. Create your admin account
-4. Enroll devices via setup keys
+**Note on MollySocket**: Currently runs as container default user (root). It seems the image has issues with SQLite file permissions when attempting to run as a non-root user with `user: "1000:1000"`, likely due to directory ownership requirements for database initialization.
 
-## Verification
+## Stack Components
 
-Check all services are healthy:
-```bash
-docker-compose ps
-```
-
-All containers should show `healthy` status.
-
-Test endpoints:
-```bash
-curl https://netbird.yourdomain.com
-curl https://ntfy.yourdomain.com
-curl https://molly.yourdomain.com
-```
-
-## Resource Usage
-
-| Service | RAM | Purpose |
-|---------|-----|---------|
-| netbird-management | 1GB | Management API + embedded IdP |
-| netbird-signal | 256MB | P2P signaling |
-| netbird-relay | 256MB | STUN/TURN relay |
-| netbird-dashboard | 128MB | Web UI |
-| ntfy | 256MB | Push notifications |
-| mollysocket | 128MB | Signal UnifiedPush |
-| caddy | 128MB | Reverse proxy + TLS |
-| **Total** | ~2.15GB | Works on budget VPS |
-
-## Firewall
-
-UFW rules (configured by setup.sh):
-- 22/tcp - SSH
-- 80/tcp - HTTP (ACME challenges)
-- 443/tcp - HTTPS
-- 3478/tcp+udp - NetBird relay
-
-## Backup
-
-Critical data volumes:
-- `netbird_data` - NetBird database and IdP data
-- `ntfy_data` - ntfy user auth database
-
-Use VPS snapshots (if available) or manual backup:
-```bash
-docker run --rm -v netbird_data:/data -v $(pwd):/backup alpine tar czf /backup/netbird_data.tar.gz /data
-docker run --rm -v ntfy_data:/data -v $(pwd):/backup alpine tar czf /backup/ntfy_data.tar.gz /data
-```
-
-## Troubleshooting
-
-**Caddy fails to get certificates:**
-- Verify DNS is pointing to VPS IP
-- Check ports 80/443 are not blocked
-- Check logs: `docker logs caddy`
-
-**NetBird management unhealthy:**
-- Check encryption key is set in .env
-- Verify relay auth secret matches
-- Check logs: `docker logs netbird-management`
-
-**Can't send ntfy notifications:**
-- Ensure you created an admin user (see step 4)
-- Verify authentication in ntfy client
-- Check logs: `docker logs ntfy`
+| Service | Port | Domain | Purpose |
+|---------|------|--------|---------|
+| Caddy | 80, 443 | All | Reverse proxy with automatic TLS |
+| NetBird | - | netbird.* | VPN/mesh network |
+| ntfy | 8082 | ntfy.* | Push notification server |
+| MollySocket | 8091 | molly.* | UnifiedPush distributor for Molly |
