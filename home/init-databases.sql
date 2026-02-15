@@ -1,0 +1,4 @@
+CREATE DATABASE nextcloud;
+CREATE DATABASE vaultwarden;
+GRANT ALL PRIVILEGES ON DATABASE nextcloud TO homeserver;
+GRANT ALL PRIVILEGES ON DATABASE vaultwarden TO homeserver;
