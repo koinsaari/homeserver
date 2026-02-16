@@ -43,10 +43,28 @@ if [ -d /dev/dri ]; then
 fi
 
 if [[ $INSTALL_GPU =~ ^[Yy]$ ]]; then
-    apt-get install -y intel-gpu-tools vainfo intel-media-va-driver-non-free
-    VIDEO_GID=$(getent group video | cut -d: -f3)
-    RENDER_GID=$(getent group render | cut -d: -f3)
-    echo "Detected video group: $VIDEO_GID, render group: $RENDER_GID"
+    echo "Enabling non-free repository for Intel drivers..."
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+        if ! grep -q "non-free" /etc/apt/sources.list.d/debian.sources; then
+            sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources
+            apt-get update
+        fi
+    elif [ -f /etc/apt/sources.list ]; then
+        if ! grep -q "non-free" /etc/apt/sources.list; then
+            sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
+            apt-get update
+        fi
+    fi
+
+    if apt-get install -y intel-gpu-tools vainfo intel-media-va-driver-non-free; then
+        VIDEO_GID=$(getent group video | cut -d: -f3)
+        RENDER_GID=$(getent group render | cut -d: -f3)
+        echo "Detected video group: $VIDEO_GID, render group: $RENDER_GID"
+    else
+        echo "Warning: GPU driver installation failed, continuing without Quick Sync"
+        VIDEO_GID=""
+        RENDER_GID=""
+    fi
 else
     VIDEO_GID=""
     RENDER_GID=""
