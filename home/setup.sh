@@ -116,19 +116,26 @@ if ! command -v netbird &> /dev/null; then
 fi
 
 echo ""
-echo "================================================"
-echo "NetBird Authentication Required"
-echo "================================================"
-echo "Run the following command to authenticate:"
-echo ""
-echo "  sudo netbird up"
-echo ""
-echo "After authentication completes, return here."
-read -p "Press ENTER when NetBird is connected..."
+read -p "Configure NetBird VPN now? (y/n) " -r SETUP_NETBIRD
+if [[ $SETUP_NETBIRD =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "================================================"
+    echo "NetBird Authentication"
+    echo "================================================"
+    echo "Run this in another terminal:"
+    echo ""
+    echo "  sudo netbird up"
+    echo ""
+    echo "If it gets stuck, press Ctrl+C here to skip."
+    read -t 300 -p "Press ENTER when connected (5 min timeout)..." || echo "Timeout - skipping NetBird"
 
-if ! netbird status 2>/dev/null | grep -q "Connected"; then
-    echo "Warning: NetBird does not appear to be connected."
-    echo "You may need to run 'sudo netbird up' manually."
+    if netbird status 2>/dev/null | grep -q "Connected"; then
+        echo "NetBird connected successfully!"
+    else
+        echo "NetBird not connected. You can set it up later with: sudo netbird up"
+    fi
+else
+    echo "Skipping NetBird setup. Run 'sudo netbird up' manually when ready."
 fi
 
 echo ""
@@ -185,6 +192,15 @@ read -p "Nextcloud admin username: " NEXTCLOUD_ADMIN_USER
 read -s -p "Nextcloud admin password: " NEXTCLOUD_ADMIN_PASSWORD
 echo ""
 
+echo ""
+echo "VPN for qBittorrent"
+read -p "VPN provider (default: mullvad): " VPN_PROVIDER
+VPN_PROVIDER=${VPN_PROVIDER:-mullvad}
+read -p "VPN type (default: wireguard): " VPN_TYPE
+VPN_TYPE=${VPN_TYPE:-wireguard}
+read -p "VPN private key: " VPN_PRIVATE_KEY
+read -p "VPN address (e.g., 10.x.x.x/32): " VPN_ADDRESSES
+
 DNS_TOKEN_VAR=""
 case "$DNS_PROVIDER" in
     cloudflare)
@@ -227,6 +243,11 @@ POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 
 NEXTCLOUD_ADMIN_USER=$NEXTCLOUD_ADMIN_USER
 NEXTCLOUD_ADMIN_PASSWORD=$NEXTCLOUD_ADMIN_PASSWORD
+
+VPN_PROVIDER=$VPN_PROVIDER
+VPN_TYPE=$VPN_TYPE
+VPN_PRIVATE_KEY=$VPN_PRIVATE_KEY
+VPN_ADDRESSES=$VPN_ADDRESSES
 EOF
 
 chmod 600 "$SCRIPT_DIR/.env"
