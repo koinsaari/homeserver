@@ -261,6 +261,8 @@ cat > "$SCRIPT_DIR/traefik/traefik.yml" << EOF
 api:
   dashboard: true
 
+ping: {}
+
 log:
   level: INFO
 
@@ -298,20 +300,6 @@ certificatesResolvers:
 EOF
 
 chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/traefik.yml"
-
-cat > "$SCRIPT_DIR/traefik/dynamic/wildcard.yml" << EOF
-tls:
-  stores:
-    default:
-      defaultGeneratedCert:
-        resolver: letsencrypt
-        domain:
-          main: "$DOMAIN"
-          sans:
-            - "*.$DOMAIN"
-EOF
-
-chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/dynamic/wildcard.yml"
 
 echo ""
 echo "================================================"

@@ -1,9 +1,0 @@
-tls:
-  stores:
-    default:
-      defaultGeneratedCert:
-        resolver: letsencrypt
-        domain:
-          main: "${DOMAIN}"
-          sans:
-            - "*.${DOMAIN}"
