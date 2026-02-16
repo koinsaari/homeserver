@@ -150,6 +150,8 @@ ufw default allow outgoing
 ufw allow from "$LAN_SUBNET" to any port 22 proto tcp comment 'SSH from LAN'
 
 ufw allow in on wt0 comment 'NetBird mesh traffic'
+ufw allow from 100.64.0.0/10 to any port 80 comment 'NetBird HTTP'
+ufw allow from 100.64.0.0/10 to any port 443 comment 'NetBird HTTPS'
 
 echo "y" | ufw enable
 
@@ -281,7 +283,7 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: internal
+    network: home_internal
   file:
     directory: /etc/traefik/dynamic
     watch: true
@@ -293,7 +295,8 @@ certificatesResolvers:
       storage: /certs/acme.json
       dnsChallenge:
         provider: "$DNS_PROVIDER"
-        delayBeforeCheck: 30
+        propagation:
+          delayBeforeChecks: 30
         resolvers:
           - "1.1.1.1:53"
           - "8.8.8.8:53"
