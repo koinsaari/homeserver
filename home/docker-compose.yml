@@ -181,8 +181,11 @@ services:
       VPN_SERVICE_PROVIDER: ${VPN_PROVIDER}
       VPN_TYPE: ${VPN_TYPE:-wireguard}
       WIREGUARD_PRIVATE_KEY: ${VPN_PRIVATE_KEY}
-      WIREGUARD_ADDRESSES: ${VPN_ADDRESSES}
-      SERVER_CITIES: ${VPN_SERVER_CITIES:-}
+      SERVER_COUNTRIES: ${VPN_SERVER_COUNTRIES:-}
+      PORT_FORWARD_ONLY: "on"
+      VPN_PORT_FORWARDING: "on"
+      VPN_PORT_FORWARDING_UP_COMMAND: >-
+        /bin/sh -c 'wget -qO- --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:8080/api/v2/app/setPreferences'
       TZ: ${TZ}
     networks:
       - internal
@@ -206,8 +209,6 @@ services:
     mem_limit: 1g
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
     network_mode: service:gluetun
     depends_on:
       gluetun:

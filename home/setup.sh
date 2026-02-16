@@ -195,14 +195,14 @@ read -s -p "Nextcloud admin password: " NEXTCLOUD_ADMIN_PASSWORD
 echo ""
 
 echo ""
-echo "VPN for qBittorrent"
-read -p "VPN provider (default: mullvad): " VPN_PROVIDER
-VPN_PROVIDER=${VPN_PROVIDER:-mullvad}
+echo "VPN for qBittorrent (routes torrent traffic through VPN)"
+read -p "VPN provider (default: protonvpn): " VPN_PROVIDER
+VPN_PROVIDER=${VPN_PROVIDER:-protonvpn}
 read -p "VPN type (default: wireguard): " VPN_TYPE
 VPN_TYPE=${VPN_TYPE:-wireguard}
-read -p "VPN private key: " VPN_PRIVATE_KEY
-read -p "VPN address (e.g., 10.x.x.x/32): " VPN_ADDRESSES
-read -p "VPN server city (optional, e.g., Stockholm): " VPN_SERVER_CITIES
+read -p "WireGuard private key: " VPN_PRIVATE_KEY
+read -p "VPN server country (default: Netherlands): " VPN_SERVER_COUNTRIES
+VPN_SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-Netherlands}
 
 echo ""
 echo "NetBird VPN binding"
@@ -255,8 +255,7 @@ NEXTCLOUD_ADMIN_PASSWORD=$NEXTCLOUD_ADMIN_PASSWORD
 VPN_PROVIDER=$VPN_PROVIDER
 VPN_TYPE=$VPN_TYPE
 VPN_PRIVATE_KEY=$VPN_PRIVATE_KEY
-VPN_ADDRESSES=$VPN_ADDRESSES
-VPN_SERVER_CITIES=$VPN_SERVER_CITIES
+VPN_SERVER_COUNTRIES=$VPN_SERVER_COUNTRIES
 
 NETBIRD_IP=$NETBIRD_IP
 EOF
