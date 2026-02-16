@@ -218,12 +218,6 @@ services:
     volumes:
       - qbittorrent_config:/config
       - /mnt/media:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -242,12 +236,6 @@ services:
       - prowlarr_config:/config
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9696/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.prowlarr.rule=Host(`prowlarr.${DOMAIN}`)"
@@ -273,12 +261,6 @@ services:
       - /mnt/media:/data
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8989/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DOMAIN}`)"
@@ -304,12 +286,6 @@ services:
       - /mnt/media:/data
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7878/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.radarr.rule=Host(`radarr.${DOMAIN}`)"
@@ -335,12 +311,6 @@ services:
       - /mnt/media:/data
     networks:
       - internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6767/api/system/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bazarr.rule=Host(`bazarr.${DOMAIN}`)"
