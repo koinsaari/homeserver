@@ -29,13 +29,31 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 echo ""
-echo "[1/7] Updating system..."
+echo "[1/8] Updating system..."
 apt-get update
 apt-get upgrade -y
 apt-get install -y curl ufw fail2ban unattended-upgrades git htop ncdu jq rsync tree
 
 echo ""
-echo "[2/7] Configuring ZRAM (4GB compressed swap)..."
+echo "[2/8] Intel Quick Sync GPU setup..."
+INSTALL_GPU="n"
+if [ -d /dev/dri ]; then
+    echo "Detected /dev/dri - Intel GPU may be available"
+    read -p "Install Intel Quick Sync drivers for Jellyfin transcoding? (y/n) " -r INSTALL_GPU
+fi
+
+if [[ $INSTALL_GPU =~ ^[Yy]$ ]]; then
+    apt-get install -y intel-gpu-tools vainfo intel-media-va-driver-non-free
+    VIDEO_GID=$(getent group video | cut -d: -f3)
+    RENDER_GID=$(getent group render | cut -d: -f3)
+    echo "Detected video group: $VIDEO_GID, render group: $RENDER_GID"
+else
+    VIDEO_GID=""
+    RENDER_GID=""
+fi
+
+echo ""
+echo "[3/8] Configuring ZRAM (4GB compressed swap)..."
 apt-get install -y zram-tools
 
 cat > /etc/default/zramswap << 'EOF'
@@ -61,7 +79,7 @@ if [ -f /swapfile ]; then
 fi
 
 echo ""
-echo "[3/7] Configuring SSH security..."
+echo "[4/8] Configuring SSH security..."
 if [ -f /etc/ssh/sshd_config ]; then
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
     sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
@@ -72,20 +90,20 @@ systemctl enable fail2ban
 systemctl start fail2ban
 
 echo ""
-echo "[4/7] Disabling laptop lid suspend..."
+echo "[5/8] Disabling laptop lid suspend..."
 sed -i 's/^#\?HandleLidSwitch=.*/HandleLidSwitch=ignore/' /etc/systemd/logind.conf
 sed -i 's/^#\?HandleLidSwitchDocked=.*/HandleLidSwitchDocked=ignore/' /etc/systemd/logind.conf
 systemctl restart systemd-logind
 
 echo ""
-echo "[5/7] Installing Docker..."
+echo "[6/8] Installing Docker..."
 if ! command -v docker &> /dev/null; then
     curl -fsSL https://get.docker.com | sh
 fi
 usermod -aG docker "$REAL_USER"
 
 echo ""
-echo "[6/7] Installing NetBird..."
+echo "[7/8] Installing NetBird..."
 if ! command -v netbird &> /dev/null; then
     curl -fsSL https://pkgs.netbird.io/install.sh | sh
 fi
@@ -107,7 +125,7 @@ if ! netbird status 2>/dev/null | grep -q "Connected"; then
 fi
 
 echo ""
-echo "[7/7] Configuring UFW firewall (zero-trust)..."
+echo "[8/8] Configuring UFW firewall (zero-trust)..."
 read -p "Enter your LAN subnet (e.g., 192.168.1.0/24): " LAN_SUBNET
 LAN_SUBNET=${LAN_SUBNET:-192.168.1.0/24}
 
@@ -192,6 +210,8 @@ TZ=$TZ
 
 PUID=$REAL_UID
 PGID=$REAL_GID
+VIDEO_GID=$VIDEO_GID
+RENDER_GID=$RENDER_GID
 
 DNS_PROVIDER=$DNS_PROVIDER
 $DNS_TOKEN_VAR=$DNS_TOKEN

@@ -93,15 +93,19 @@ services:
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
+    user: ${PUID}:${PGID}
     restart: unless-stopped
     mem_limit: 2g
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # Comment out if don't have Intel Quick Sync hardware transcoding
+    # Intel Quick Sync: comment out devices + group_add if no iGPU
     devices:
       - /dev/dri:/dev/dri
+    group_add:
+      - ${VIDEO_GID}
+      - ${RENDER_GID}
     environment:
       TZ: ${TZ}
       JELLYFIN_CACHE_DIR: /cache
