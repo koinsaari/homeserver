@@ -21,6 +21,7 @@ echo "  - NetBird VPN client"
 echo "  - Docker"
 echo "  - UFW firewall"
 echo "  - Traefik directories"
+echo "  - Media library structure (/mnt/media)"
 echo ""
 read -p "Continue with installation? (y/n) " -r
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -31,7 +32,7 @@ echo ""
 echo "[1/7] Updating system..."
 apt-get update
 apt-get upgrade -y
-apt-get install -y curl ufw fail2ban unattended-upgrades
+apt-get install -y curl ufw fail2ban unattended-upgrades git htop ncdu jq rsync tree
 
 echo ""
 echo "[2/7] Configuring ZRAM (4GB compressed swap)..."
@@ -124,14 +125,15 @@ echo ""
 echo "Setting up Traefik directories..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mkdir -p "$SCRIPT_DIR/traefik/certs"
 mkdir -p "$SCRIPT_DIR/traefik/dynamic"
-touch "$SCRIPT_DIR/traefik/certs/acme.json"
-chmod 600 "$SCRIPT_DIR/traefik/certs/acme.json"
 chown -R "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik"
 
 mkdir -p /mnt/hot/nextcloud-data
 chown -R "$REAL_USER:$REAL_USER" /mnt/hot/nextcloud-data 2>/dev/null || true
+
+mkdir -p /mnt/media/torrents/{incomplete,complete}
+mkdir -p /mnt/media/media/{tv,movies}
+chown -R "$REAL_USER:$REAL_USER" /mnt/media 2>/dev/null || true
 
 echo ""
 echo "Generating .env file..."
@@ -180,10 +182,16 @@ case "$DNS_PROVIDER" in
         ;;
 esac
 
+REAL_UID=$(id -u "$REAL_USER")
+REAL_GID=$(id -g "$REAL_USER")
+
 cat > "$SCRIPT_DIR/.env" << EOF
 DOMAIN=$DOMAIN
 ACME_EMAIL=$ACME_EMAIL
 TZ=$TZ
+
+PUID=$REAL_UID
+PGID=$REAL_GID
 
 DNS_PROVIDER=$DNS_PROVIDER
 $DNS_TOKEN_VAR=$DNS_TOKEN
@@ -214,6 +222,11 @@ echo "Services will be available at:"
 echo "  - https://nextcloud.$DOMAIN"
 echo "  - https://jellyfin.$DOMAIN"
 echo "  - https://vault.$DOMAIN"
+echo "  - https://qbit.$DOMAIN"
+echo "  - https://prowlarr.$DOMAIN"
+echo "  - https://sonarr.$DOMAIN"
+echo "  - https://radarr.$DOMAIN"
+echo "  - https://bazarr.$DOMAIN"
 echo ""
 echo "Credentials saved in: $SCRIPT_DIR/.env"
 echo "================================================"
