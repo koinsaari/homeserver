@@ -256,6 +256,64 @@ chmod 600 "$SCRIPT_DIR/.env"
 chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/.env"
 
 echo ""
+echo "Generating Traefik configuration..."
+cat > "$SCRIPT_DIR/traefik/traefik.yml" << EOF
+api:
+  dashboard: true
+
+log:
+  level: INFO
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: internal
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "$ACME_EMAIL"
+      storage: /certs/acme.json
+      dnsChallenge:
+        provider: "$DNS_PROVIDER"
+        delayBeforeCheck: 30
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+EOF
+
+chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/traefik.yml"
+
+cat > "$SCRIPT_DIR/traefik/dynamic/wildcard.yml" << EOF
+tls:
+  stores:
+    default:
+      defaultGeneratedCert:
+        resolver: letsencrypt
+        domain:
+          main: "$DOMAIN"
+          sans:
+            - "*.$DOMAIN"
+EOF
+
+chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/dynamic/wildcard.yml"
+
+echo ""
 echo "================================================"
 echo "Setup Complete!"
 echo "================================================"
