@@ -180,15 +180,16 @@ services:
       VPN_TYPE: ${VPN_TYPE:-wireguard}
       WIREGUARD_PRIVATE_KEY: ${VPN_PRIVATE_KEY}
       WIREGUARD_ADDRESSES: ${VPN_ADDRESSES}
+      SERVER_CITIES: ${VPN_SERVER_CITIES:-}
       TZ: ${TZ}
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "https://api.ipify.org"]
-      interval: 60s
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.qbittorrent.rule=Host(`qbit.${DOMAIN}`)"

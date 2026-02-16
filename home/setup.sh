@@ -200,6 +200,7 @@ read -p "VPN type (default: wireguard): " VPN_TYPE
 VPN_TYPE=${VPN_TYPE:-wireguard}
 read -p "VPN private key: " VPN_PRIVATE_KEY
 read -p "VPN address (e.g., 10.x.x.x/32): " VPN_ADDRESSES
+read -p "VPN server city (optional, e.g., Stockholm): " VPN_SERVER_CITIES
 
 DNS_TOKEN_VAR=""
 case "$DNS_PROVIDER" in
@@ -248,6 +249,7 @@ VPN_PROVIDER=$VPN_PROVIDER
 VPN_TYPE=$VPN_TYPE
 VPN_PRIVATE_KEY=$VPN_PRIVATE_KEY
 VPN_ADDRESSES=$VPN_ADDRESSES
+VPN_SERVER_CITIES=$VPN_SERVER_CITIES
 EOF
 
 chmod 600 "$SCRIPT_DIR/.env"
