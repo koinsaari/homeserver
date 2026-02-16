@@ -204,6 +204,11 @@ read -p "VPN private key: " VPN_PRIVATE_KEY
 read -p "VPN address (e.g., 10.x.x.x/32): " VPN_ADDRESSES
 read -p "VPN server city (optional, e.g., Stockholm): " VPN_SERVER_CITIES
 
+echo ""
+echo "NetBird VPN binding"
+echo "Run 'ip addr show wt0 | grep inet' to find your NetBird IP"
+read -p "NetBird IP (e.g., 100.64.x.x): " NETBIRD_IP
+
 DNS_TOKEN_VAR=""
 case "$DNS_PROVIDER" in
     cloudflare)
@@ -252,6 +257,8 @@ VPN_TYPE=$VPN_TYPE
 VPN_PRIVATE_KEY=$VPN_PRIVATE_KEY
 VPN_ADDRESSES=$VPN_ADDRESSES
 VPN_SERVER_CITIES=$VPN_SERVER_CITIES
+
+NETBIRD_IP=$NETBIRD_IP
 EOF
 
 chmod 600 "$SCRIPT_DIR/.env"
