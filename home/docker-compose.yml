@@ -155,6 +155,7 @@ services:
       - LOG_TIMESTAMP_FORMAT="%Y-%m-%d %H:%M:%S.%3f"
       - LOG_LEVEL=info
       - REQUIRE_DEVICE_EMAIL=false
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
     volumes:
       - vaultwarden_data:/data
     networks:
