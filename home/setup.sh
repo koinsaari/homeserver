@@ -234,21 +234,13 @@ echo "NetBird VPN binding"
 echo "Run 'ip addr show wt0 | grep inet' to find your NetBird IP"
 [ -z "${NETBIRD_IP:-}" ] && read -p "NetBird IP (e.g., 100.64.x.x): " NETBIRD_IP
 
-VAULTWARDEN_ADMIN_PLAIN=""
 if [ -z "${ADMIN_TOKEN:-}" ]; then
     echo ""
-    echo "Generating Vaultwarden admin token (requires Docker)..."
-    VAULTWARDEN_ADMIN_PLAIN=$(openssl rand -base64 48 | tr -d '\n')
-    ADMIN_TOKEN=$(printf '%s' "$VAULTWARDEN_ADMIN_PLAIN" \
-        | docker run --rm -i vaultwarden/server /vaultwarden hash 2>/dev/null \
-        | grep -o '\$argon2.*')
-
-    if [ -z "$ADMIN_TOKEN" ]; then
-        echo "Warning: Could not generate Argon2 hash (Docker may not be running yet)."
-        echo "Falling back to plain-text token. Replace ADMIN_TOKEN in .env later with:"
-        echo "  docker run --rm -it vaultwarden/server /vaultwarden hash"
-        ADMIN_TOKEN="$VAULTWARDEN_ADMIN_PLAIN"
-    fi
+    echo "ADMIN_TOKEN not set. After starting containers, generate it with:"
+    echo "  docker exec -it vaultwarden /vaultwarden hash"
+    echo "Then add to .env: ADMIN_TOKEN='<generated-hash>'"
+    echo "And restart: docker compose restart vaultwarden"
+    ADMIN_TOKEN=""
 fi
 
 REAL_UID=$(id -u "$REAL_USER")
@@ -286,8 +278,9 @@ chmod 600 "$SCRIPT_DIR/.env"
 chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/.env"
 
 echo ""
-echo "Generating Traefik configuration..."
-cat > "$SCRIPT_DIR/traefik/traefik.yml" << EOF
+if [ ! -f "$SCRIPT_DIR/traefik/traefik.yml" ]; then
+    echo "Generating Traefik configuration..."
+    cat > "$SCRIPT_DIR/traefik/traefik.yml" << EOF
 api:
   dashboard: true
 
@@ -330,7 +323,10 @@ certificatesResolvers:
           - "8.8.8.8:53"
 EOF
 
-chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/traefik.yml"
+    chown "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik/traefik.yml"
+else
+    echo "Traefik configuration already exists, skipping."
+fi
 
 echo ""
 echo "================================================"
@@ -356,10 +352,4 @@ echo "  - https://radarr.$DOMAIN"
 echo "  - https://bazarr.$DOMAIN"
 echo ""
 echo "Credentials saved in: $SCRIPT_DIR/.env"
-if [ -n "$VAULTWARDEN_ADMIN_PLAIN" ]; then
-    echo ""
-    echo "Vaultwarden admin password (save this, it is not stored anywhere):"
-    echo "  $VAULTWARDEN_ADMIN_PLAIN"
-    echo "  Admin panel: https://vault.$DOMAIN/admin"
-fi
 echo "================================================"
