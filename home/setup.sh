@@ -21,7 +21,7 @@ echo "  - NetBird VPN client"
 echo "  - Docker"
 echo "  - UFW firewall"
 echo "  - Traefik directories"
-echo "  - Media library structure (/mnt/media)"
+echo "  - Media library structure (/mnt/wd)"
 echo ""
 read -p "Continue with installation? (y/n) " -r
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -168,13 +168,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$SCRIPT_DIR/traefik/dynamic"
 chown -R "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik"
 
-mkdir -p /mnt/hot/nextcloud-data
-chown -R "$REAL_USER:$REAL_USER" /mnt/hot/nextcloud-data 2>/dev/null || true
+mkdir -p /var/lib/nextcloud/data
+chown -R "$REAL_USER:$REAL_USER" /var/lib/nextcloud/data 2>/dev/null || true
 
-mkdir -p /mnt/media/downloads/complete/{movies,tv}
-mkdir -p /mnt/media/downloads/ready/{movies,tv}
-mkdir -p /mnt/media/{Movies,TV}
-chown -R "$REAL_USER:$REAL_USER" /mnt/media 2>/dev/null || true
+mkdir -p /mnt/wd/media/{downloads/complete,downloads/ready,downloads/quarantine,Movies,TV}
+chown -R "$REAL_USER:$REAL_USER" /mnt/wd/media 2>/dev/null || true
 
 echo ""
 echo "Generating .env file..."
