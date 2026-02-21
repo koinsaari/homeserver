@@ -16,10 +16,22 @@ pub enum ConfigError {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    pub photos: PhotosConfig,
+    pub media: MediaConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PhotosConfig {
     pub watcher: WatcherConfig,
-    pub scanner: ScannerConfig,
     pub organizer: OrganizerConfig,
     pub nextcloud: NextcloudConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MediaConfig {
+    pub watcher: WatcherConfig,
+    pub scanner: ScannerConfig,
+    pub mover: MoverConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -58,6 +70,13 @@ pub struct NextcloudConfig {
     pub internal_prefix: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct MoverConfig {
+    pub enabled: bool,
+    pub source: PathBuf,
+    pub destination: PathBuf,
+}
+
 impl Config {
     pub fn load(path: &str) -> Result<Self, ConfigError> {
         let content = std::fs::read_to_string(path)?;
@@ -68,22 +87,29 @@ impl Config {
     }
 
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.watcher.paths.is_empty() {
+        Self::validate_watcher(&self.photos.watcher, "photos")?;
+        Self::validate_watcher(&self.media.watcher, "media")?;
+
+        if self.media.scanner.enabled && !self.media.scanner.clamscan_path.exists() {
             return Err(ConfigError::ValidationError(
-                "watcher.paths cannot be empty".to_string()
+                format!("clamscan binary not found at {:?}", self.media.scanner.clamscan_path)
             ));
         }
 
-        if self.watcher.debounce_ms < 100 || self.watcher.debounce_ms > 60_000 {
+        Ok(())
+    }
+
+    fn validate_watcher(watcher: &WatcherConfig, name: &str) -> Result<(), ConfigError> {
+        if watcher.paths.is_empty() {
             return Err(ConfigError::ValidationError(
-                format!("watcher.debounce_ms must be between 100 and 60000, got {}",
-                    self.watcher.debounce_ms)
+                format!("{}.watcher.paths cannot be empty", name)
             ));
         }
 
-        if self.scanner.enabled && !self.scanner.clamscan_path.exists() {
+        if watcher.debounce_ms < 100 || watcher.debounce_ms > 60_000 {
             return Err(ConfigError::ValidationError(
-                format!("clamscan binary not found at {:?}", self.scanner.clamscan_path)
+                format!("{}.watcher.debounce_ms must be between 100 and 60000, got {}",
+                    name, watcher.debounce_ms)
             ));
         }
 
@@ -95,75 +121,75 @@ impl Config {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_config_validation() {
-        let config = Config {
-            watcher: WatcherConfig {
-                paths: vec![PathBuf::from("/tmp")],
-                debounce_ms: 5000,
+    fn test_config() -> Config {
+        Config {
+            photos: PhotosConfig {
+                watcher: WatcherConfig {
+                    paths: vec![PathBuf::from("/tmp/photos")],
+                    debounce_ms: 5000,
+                },
+                organizer: OrganizerConfig {
+                    enabled: false,
+                    photos_dir: Default::default(),
+                    photo_prefix: "IMG".to_string(),
+                    video_prefix: "VID".to_string(),
+                    photo_extensions: vec![],
+                    video_extensions: vec![],
+                    file_owner: None,
+                    file_group: None,
+                },
+                nextcloud: NextcloudConfig {
+                    enabled: false,
+                    container_name: "nextcloud".to_string(),
+                    username: "admin".to_string(),
+                    data_dir: Default::default(),
+                    internal_prefix: "/admin/files".to_string(),
+                },
             },
-            scanner: ScannerConfig {
-                clamscan_path: Default::default(),
-                quarantine_dir: Default::default(),
-                enabled: false,
-                allowed_extensions: vec![],
-                block_executables: false,
+            media: MediaConfig {
+                watcher: WatcherConfig {
+                    paths: vec![PathBuf::from("/tmp/media")],
+                    debounce_ms: 5000,
+                },
+                scanner: ScannerConfig {
+                    clamscan_path: Default::default(),
+                    quarantine_dir: Default::default(),
+                    enabled: false,
+                    allowed_extensions: vec![],
+                    block_executables: false,
+                },
+                mover: MoverConfig {
+                    enabled: false,
+                    source: Default::default(),
+                    destination: Default::default(),
+                },
             },
-            organizer: OrganizerConfig {
-                enabled: false,
-                photos_dir: Default::default(),
-                photo_prefix: "IMG".to_string(),
-                video_prefix: "VID".to_string(),
-                photo_extensions: vec![],
-                video_extensions: vec![],
-                file_owner: None,
-                file_group: None,
-            },
-            nextcloud: NextcloudConfig {
-                enabled: false,
-                container_name: "nextcloud".to_string(),
-                username: "admin".to_string(),
-                data_dir: Default::default(),
-                internal_prefix: "/admin/files".to_string(),
-            },
-        };
-
-        assert!(config.validate().is_ok());
+        }
     }
 
     #[test]
-    fn test_empty_paths_fails() {
-        let config = Config {
-            watcher: WatcherConfig {
-                paths: vec![],
-                debounce_ms: 5000,
-            },
-            scanner: ScannerConfig {
-                clamscan_path: Default::default(),
-                quarantine_dir: Default::default(),
-                enabled: false,
-                allowed_extensions: vec![],
-                block_executables: false,
-            },
-            organizer: OrganizerConfig {
-                enabled: false,
-                photos_dir: Default::default(),
-                photo_prefix: "IMG".to_string(),
-                video_prefix: "VID".to_string(),
-                photo_extensions: vec![],
-                video_extensions: vec![],
-                file_owner: None,
-                file_group: None,
-            },
-            nextcloud: NextcloudConfig {
-                enabled: false,
-                container_name: "nextcloud".to_string(),
-                username: "admin".to_string(),
-                data_dir: Default::default(),
-                internal_prefix: "/admin/files".to_string(),
-            },
-        };
+    fn test_valid_config() {
+        assert!(test_config().validate().is_ok());
+    }
 
+    #[test]
+    fn test_empty_photos_paths_fails() {
+        let mut config = test_config();
+        config.photos.watcher.paths = vec![];
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_empty_media_paths_fails() {
+        let mut config = test_config();
+        config.media.watcher.paths = vec![];
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_bad_debounce_fails() {
+        let mut config = test_config();
+        config.media.watcher.debounce_ms = 50;
         assert!(config.validate().is_err());
     }
 }

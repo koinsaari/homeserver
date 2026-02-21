@@ -1,0 +1,25 @@
+[Unit]
+Description=homed - File watcher and organizer for home server
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/homed
+ExecStart=/opt/homed/homed
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/mnt/wd/media /var/lib/nextcloud/data
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homed
+
+[Install]
+WantedBy=multi-user.target

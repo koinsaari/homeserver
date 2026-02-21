@@ -71,11 +71,12 @@ pub async fn run_nextcloud(
         };
 
         if !config.enabled {
+            let _ = tx.send(event).await;
             continue;
         }
 
-        let Some(internal_path) = translate_path(&new_path, &config) else {
-            warn!(path = %new_path.display(), "could not translate path to nextcloud internal path");
+        let Some(internal_path) = translate_path(new_path, &config) else {
+            let _ = tx.send(event).await;
             continue;
         };
 

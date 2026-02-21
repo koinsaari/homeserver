@@ -137,13 +137,13 @@ pub async fn run_metadata(
             _ = shutdown.recv() => break,
             else => break,
         };
-        let FileEvent::Scanned { path, clean } = event else {
-            continue;
+        let path = match event {
+            FileEvent::Detected { path, .. } => path,
+            other => {
+                let _ = tx.send(other).await;
+                continue;
+            }
         };
-
-        if !clean {
-            continue;
-        }
 
         let Some(media_type) = classify_media_type(&path, &config) else {
             let _ = tx.send(FileEvent::Failed {

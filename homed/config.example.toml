@@ -1,0 +1,38 @@
+# Photos pipeline: Nextcloud uploads → EXIF rename → date folders → occ scan
+[photos.watcher]
+paths = ["/mnt/wd/media/downloads/complete"]
+debounce_ms = 5000
+
+[photos.organizer]
+enabled = true
+photos_dir = "/var/lib/nextcloud/data/USERNAME/files/Photos"
+photo_prefix = "IMG"
+video_prefix = "VID"
+photo_extensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "raw", "cr2", "nef", "arw", "dng"]
+video_extensions = ["mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm"]
+file_owner = "www-data"
+file_group = "www-data"
+
+[photos.nextcloud]
+enabled = true
+container_name = "nextcloud"
+username = "USERNAME"
+data_dir = "/var/lib/nextcloud/data/USERNAME/files/Photos"
+internal_prefix = "/USERNAME/files/Photos"
+
+# Media pipeline: torrent downloads → ClamAV scan → hardlink to ready/
+[media.watcher]
+paths = ["/mnt/wd/media/downloads/complete"]
+debounce_ms = 5000
+
+[media.scanner]
+clamscan_path = "/usr/bin/clamscan"
+quarantine_dir = "/mnt/wd/media/downloads/quarantine"
+enabled = true
+allowed_extensions = ["mkv", "mp4", "avi", "mov", "srt", "sub", "ass"]
+block_executables = true
+
+[media.mover]
+enabled = true
+source = "/mnt/wd/media/downloads/complete"
+destination = "/mnt/wd/media/downloads/ready"

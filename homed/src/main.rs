@@ -1,5 +1,6 @@
 mod config;
 mod metadata;
+mod mover;
 mod nextcloud;
 mod organizer;
 mod scanner;
@@ -16,113 +17,21 @@ async fn main() -> anyhow::Result<()> {
 
     info!("homed starting up");
 
-    let config = Config::load("config.toml")?;
-    info!(
-        paths = config.watcher.paths.len(),
-        debounce_ms = config.watcher.debounce_ms,
-        scanner = config.scanner.enabled,
-        organizer = config.organizer.enabled,
-        nextcloud = config.nextcloud.enabled,
-        "configuration loaded"
-    );
+    let config = Config::load("/opt/homed/config.toml")?;
 
     let (shutdown_tx, _) = broadcast::channel(1);
+    let (output_tx, mut output_rx) = mpsc::channel::<FileEvent>(100);
 
-    let (watcher_tx, watcher_rx) = mpsc::channel(100);
-    let (scanner_tx, scanner_rx) = mpsc::channel(100);
-    let (metadata_tx, metadata_rx) = mpsc::channel(100);
-    let (organizer_tx, organizer_rx) = mpsc::channel(100);
-    let (nextcloud_tx, mut output_rx) = mpsc::channel(100);
+    let photos_handles = spawn_photos_pipeline(&config, &shutdown_tx, output_tx.clone());
+    let media_handles = spawn_media_pipeline(&config, &shutdown_tx, output_tx);
 
-    let watcher_handle = tokio::spawn({
-        let config = config.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = watcher::run_watcher(config.watcher, watcher_tx, shutdown_rx).await {
-                error!(error = %e, "watcher failed");
-            }
-        }
-    });
-
-    let scanner_handle = tokio::spawn({
-        let config = config.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = scanner::run_scanner(config.scanner, watcher_rx, scanner_tx, shutdown_rx).await {
-                error!(error = %e, "scanner failed");
-            }
-        }
-    });
-
-    let metadata_handle = tokio::spawn({
-        let config = config.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = metadata::run_metadata(config.organizer, scanner_rx, metadata_tx, shutdown_rx).await {
-                error!(error = %e, "metadata failed");
-            }
-        }
-    });
-
-    let organizer_handle = tokio::spawn({
-        let config = config.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = organizer::run_organizer(config.organizer, metadata_rx, organizer_tx, shutdown_rx).await {
-                error!(error = %e, "organizer failed");
-            }
-        }
-    });
-
-    let nextcloud_handle = tokio::spawn({
-        let config = config.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = nextcloud::run_nextcloud(config.nextcloud, organizer_rx, nextcloud_tx, shutdown_rx).await {
-                error!(error = %e, "nextcloud failed");
-            }
-        }
-    });
-
-    info!("watching for file events");
+    info!("pipelines running");
 
     loop {
         tokio::select! {
-            Some(event) = output_rx.recv() => {
-                match event {
-                    FileEvent::Detected { path, size } => {
-                        info!(path = %path.display(), size, "file detected");
-                    }
-                    FileEvent::Scanned { path, clean } => {
-                        if clean {
-                            info!(path = %path.display(), "scan passed");
-                        } else {
-                            warn!(path = %path.display(), "malware detected");
-                        }
-                    }
-                    FileEvent::Enriched { path, media_type, datetime } => {
-                        info!(
-                            path = %path.display(),
-                            media_type = ?media_type,
-                            datetime = %datetime,
-                            "metadata extracted"
-                        );
-                    }
-                    FileEvent::Organized { old_path, new_path } => {
-                        info!(
-                            from = %old_path.display(),
-                            to = %new_path.display(),
-                            "file organized"
-                        );
-                    }
-                    FileEvent::Failed { path, error } => {
-                        warn!(path = %path.display(), error, "processing failed");
-                    }
-                }
-            }
-
+            Some(event) = output_rx.recv() => log_event(&event),
             _ = tokio::signal::ctrl_c() => {
-                info!("received shutdown signal, draining pipeline");
+                info!("received shutdown signal, draining pipelines");
                 shutdown_tx.send(()).ok();
                 break;
             }
@@ -130,19 +39,143 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let shutdown_timeout = std::time::Duration::from_secs(30);
-    let all_actors = async {
-        let _ = watcher_handle.await;
-        let _ = scanner_handle.await;
-        let _ = metadata_handle.await;
-        let _ = organizer_handle.await;
-        let _ = nextcloud_handle.await;
+    let all_handles = async {
+        for handle in photos_handles.into_iter().chain(media_handles) {
+            let _ = handle.await;
+        }
     };
 
-    if tokio::time::timeout(shutdown_timeout, all_actors).await.is_err() {
+    if tokio::time::timeout(shutdown_timeout, all_handles).await.is_err() {
         warn!("shutdown timed out after 30s, forcing exit");
     } else {
         info!("shutdown complete");
     }
 
     Ok(())
+}
+
+fn spawn_photos_pipeline(
+    config: &Config,
+    shutdown_tx: &broadcast::Sender<()>,
+    output_tx: mpsc::Sender<FileEvent>,
+) -> Vec<tokio::task::JoinHandle<()>> {
+    let (watcher_tx, watcher_rx) = mpsc::channel(100);
+    let (metadata_tx, metadata_rx) = mpsc::channel(100);
+    let (organizer_tx, organizer_rx) = mpsc::channel(100);
+
+    let watcher_handle = tokio::spawn({
+        let config = config.photos.watcher.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = watcher::run_watcher(config, watcher_tx, shutdown_rx).await {
+                error!(error = %e, "photos watcher failed");
+            }
+        }
+    });
+
+    let metadata_handle = tokio::spawn({
+        let config = config.photos.organizer.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = metadata::run_metadata(config, watcher_rx, metadata_tx, shutdown_rx).await {
+                error!(error = %e, "photos metadata failed");
+            }
+        }
+    });
+
+    let organizer_handle = tokio::spawn({
+        let config = config.photos.organizer.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = organizer::run_organizer(config, metadata_rx, organizer_tx, shutdown_rx).await {
+                error!(error = %e, "photos organizer failed");
+            }
+        }
+    });
+
+    let nextcloud_handle = tokio::spawn({
+        let config = config.photos.nextcloud.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = nextcloud::run_nextcloud(config, organizer_rx, output_tx, shutdown_rx).await {
+                error!(error = %e, "photos nextcloud failed");
+            }
+        }
+    });
+
+    vec![watcher_handle, metadata_handle, organizer_handle, nextcloud_handle]
+}
+
+fn spawn_media_pipeline(
+    config: &Config,
+    shutdown_tx: &broadcast::Sender<()>,
+    output_tx: mpsc::Sender<FileEvent>,
+) -> Vec<tokio::task::JoinHandle<()>> {
+    let (watcher_tx, watcher_rx) = mpsc::channel(100);
+    let (scanner_tx, scanner_rx) = mpsc::channel(100);
+
+    let watcher_handle = tokio::spawn({
+        let config = config.media.watcher.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = watcher::run_watcher(config, watcher_tx, shutdown_rx).await {
+                error!(error = %e, "media watcher failed");
+            }
+        }
+    });
+
+    let scanner_handle = tokio::spawn({
+        let config = config.media.scanner.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = scanner::run_scanner(config, watcher_rx, scanner_tx, shutdown_rx).await {
+                error!(error = %e, "media scanner failed");
+            }
+        }
+    });
+
+    let mover_handle = tokio::spawn({
+        let config = config.media.mover.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        async move {
+            if let Err(e) = mover::run_mover(config, scanner_rx, output_tx, shutdown_rx).await {
+                error!(error = %e, "media mover failed");
+            }
+        }
+    });
+
+    vec![watcher_handle, scanner_handle, mover_handle]
+}
+
+fn log_event(event: &FileEvent) {
+    match event {
+        FileEvent::Detected { path, size } => {
+            info!(path = %path.display(), size, "file detected");
+        }
+        FileEvent::Scanned { path, clean } => {
+            if *clean {
+                info!(path = %path.display(), "scan passed");
+            } else {
+                warn!(path = %path.display(), "malware detected");
+            }
+        }
+        FileEvent::Enriched { path, media_type, datetime } => {
+            info!(
+                path = %path.display(),
+                media_type = ?media_type,
+                datetime = %datetime,
+                "metadata extracted"
+            );
+        }
+        FileEvent::Organized { old_path, new_path } => {
+            info!(
+                from = %old_path.display(),
+                to = %new_path.display(),
+                "file organized"
+            );
+        }
+        FileEvent::Failed { path, error } => {
+            warn!(path = %path.display(), error, "processing failed");
+        }
+    }
 }
