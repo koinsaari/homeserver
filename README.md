@@ -4,31 +4,25 @@ My self-hosted setup running on an old laptop.
 
 ## What's Running
 
-* **Nextcloud**: Cloud storage and photo backup with automated syncing.
-* **Pi-hole**: Network-wide ad and tracker blocker that functions as a DNS sinkhole.
-* **Jellyfin**: Private media server for streaming any type of media.
-* **MollySocket**: UnifiedPush provider that monitors Signal for new messages.
-* **ntfy**: Private notification server that delivers MollySocket alerts to phone via Tailscale.
-* **ClamAV**: Antivirus engine integrated with Nextcloud for automated file scanning.
+### Home Server
 
-## Setup
+- **Nextcloud** — cloud storage and photo backup, running in Docker behind Traefik
+- **Jellyfin** — media server with Intel Quick Sync hardware transcoding
+- **qBittorrent** — torrent client with all traffic routed through WireGuard VPN
+- **Sonarr / Radarr / Prowlarr / Bazarr** — media automation: indexing, downloading, renaming, subtitles
+- **homed** — Rust daemon that watches directories and runs two pipelines:
+  - Photos: EXIF extraction → date-based renaming → Nextcloud `occ files:scan`
+  - Media: extension whitelist → magic byte validation → hardlink to import directory
 
-```bash
-git clone https://github.com/koinsaari/homeserver.git
-cd homeserver
-chmod +x setup.sh
-sudo ./setup.sh
-```
+### VPS
 
-Script handles everything: Docker, Tailscale, firewall, passwords.
+- **ntfy** — self-hosted push notification server, auth-gated with bearer tokens
+- **MollySocket** — UnifiedPush provider bridging Signal notifications to ntfy
+- **Caddy** — reverse proxy handling TLS termination for all services
 
-## Security
+## Networking
 
-No WAN exposure. Remote access only via Tailscale. UFW firewall, full-disk encryption, automatic security updates.
-
-## Hardware
-
-Some HP 2015 laptop, 8GB RAM, LUKS-encrypted SSD.
+The home server has no open ports on the WAN. All remote access goes through NetBird, a WireGuard-based mesh VPN. The VPS exposes only ports 80 and 443 through Caddy.
 
 ## License
 
