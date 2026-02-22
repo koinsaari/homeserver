@@ -1,0 +1,45 @@
+name: homed
+
+on:
+  push:
+    paths:
+      - "homed/**"
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl-tools
+        run: sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: homed
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-musl --manifest-path homed/Cargo.toml
+
+      - name: Test
+        run: cargo test --manifest-path homed/Cargo.toml
+
+      - name: Get version
+        id: version
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: homed-${{ steps.version.outputs.sha }}
+          name: homed ${{ steps.version.outputs.sha }}
+          files: homed/target/x86_64-unknown-linux-musl/release/homed

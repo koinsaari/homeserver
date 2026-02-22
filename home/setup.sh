@@ -175,6 +175,32 @@ mkdir -p /mnt/wd/media/{downloads/complete,downloads/ready,downloads/quarantine,
 chown -R "$REAL_USER:$REAL_USER" /mnt/wd/media 2>/dev/null || true
 
 echo ""
+echo "Installing homed (file watcher and organizer)..."
+HOMED_REPO="koinsaari/homeserver"
+HOMED_URL="https://github.com/$HOMED_REPO/releases/latest/download/homed"
+HOMED_DIR="/opt/homed"
+
+mkdir -p "$HOMED_DIR"
+
+if curl -fL -o /tmp/homed "$HOMED_URL"; then
+    install -m 755 /tmp/homed "$HOMED_DIR/homed"
+    rm /tmp/homed
+
+    if [ ! -f "$HOMED_DIR/config.toml" ]; then
+        cp "$SCRIPT_DIR/../homed/config.example.toml" "$HOMED_DIR/config.toml"
+        echo "Copied config.example.toml to $HOMED_DIR/config.toml"
+        echo "IMPORTANT: Edit $HOMED_DIR/config.toml with your actual values"
+    fi
+
+    cp "$SCRIPT_DIR/../homed/homed.service" /etc/systemd/system/homed.service
+    systemctl daemon-reload
+    systemctl enable homed
+    echo "homed installed. It will start after config is edited."
+else
+    echo "Warning: No homed release found. Push code to main to trigger a build."
+fi
+
+echo ""
 echo "Generating .env file..."
 
 if [ -f "$SCRIPT_DIR/.env" ]; then
