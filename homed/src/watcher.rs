@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tokio::time::Instant;
 use thiserror::Error;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use tracing::info;
 
 #[derive(Debug, Clone, Copy)]
@@ -19,15 +19,27 @@ pub enum MediaType {
 /// Events representing the file lifecycle within the pipeline.
 #[derive(Debug, Clone)]
 pub enum FileEvent {
-    Detected { path: PathBuf, size: u64 },
-    Scanned { path: PathBuf, clean: bool },
+    Detected {
+        path: PathBuf,
+        size: u64,
+    },
+    Scanned {
+        path: PathBuf,
+        clean: bool,
+    },
     Enriched {
         path: PathBuf,
         media_type: MediaType,
         datetime: chrono::DateTime<chrono::FixedOffset>,
     },
-    Organized { old_path: PathBuf, new_path: PathBuf },
-    Failed { path: PathBuf, error: String },
+    Organized {
+        old_path: PathBuf,
+        new_path: PathBuf,
+    },
+    Failed {
+        path: PathBuf,
+        error: String,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -63,7 +75,7 @@ pub async fn run_watcher(
             },
             notify::Config::default(),
         )
-            .expect("Failed to create watcher");
+        .expect("Failed to create watcher");
 
         for path in &paths_to_watch {
             watcher

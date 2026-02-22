@@ -1,39 +1,17 @@
-use crate::config::ScannerConfig;
-use crate::watcher::FileEvent;
 use std::path::Path;
+
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::error;
+
+use crate::checks;
+use crate::config::ScannerConfig;
+use crate::watcher::FileEvent;
 
 #[derive(Debug, Error)]
 pub enum ScannerError {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
-}
-
-fn is_extension_allowed(path: &Path, allowed: &[String]) -> bool {
-    let extension = path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("");
-
-    allowed.iter().any(|allowed_ext| {
-        allowed_ext.eq_ignore_ascii_case(extension)
-    })
-}
-
-fn is_executable(path: &Path) -> bool {
-    const EXECUTABLE_EXTS: &[&str] = &[
-        "exe", "bat", "cmd", "com", "sh", "bash", "zsh",
-        "py", "pyc", "pl", "rb", "jar", "app", "run"
-    ];
-
-    let extension = path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or("");
-
-    EXECUTABLE_EXTS.contains(&extension)
 }
 
 pub async fn run_scanner(
@@ -50,33 +28,40 @@ pub async fn run_scanner(
             _ = shutdown.recv() => break,
             else => break,
         };
-        let FileEvent::Detected { path, size: _ } = event else {
+        let FileEvent::Detected { path, size } = event else {
             continue;
         };
 
-        if !is_extension_allowed(&path, &config.allowed_extensions) {
-            let _ = tx.send(FileEvent::Failed {
-                path,
-                error: "File extension not allowed".to_string(),
-            }).await;
+        if let Err(rejection) = check_file(&path, size, &config) {
+            if config.block_executables
+                || !matches!(rejection, checks::ScanRejection::ExecutableExtension(_))
+            {
+                quarantine_file(&path, &config.quarantine_dir).await;
+            }
+
+            let _ = tx
+                .send(FileEvent::Failed {
+                    path,
+                    error: rejection.to_string(),
+                })
+                .await;
             continue;
         }
 
-        if config.block_executables && is_executable(&path) {
-            quarantine_file(&path, &config.quarantine_dir).await;
-
-            let _ = tx.send(FileEvent::Failed {
-                path,
-                error: "Executable file blocked".to_string(),
-            }).await;
-            continue;
-        }
-
-        let _ = tx.send(FileEvent::Scanned {
-            path,
-            clean: true,
-        }).await;
+        let _ = tx.send(FileEvent::Scanned { path, clean: true }).await;
     }
+
+    Ok(())
+}
+
+fn check_file(path: &Path, size: u64, config: &ScannerConfig) -> Result<(), checks::ScanRejection> {
+    checks::check_extension(path, &config.allowed_extensions)?;
+
+    if config.block_executables {
+        checks::check_executable_extension(path)?;
+    }
+
+    checks::check_file_size(path, size)?;
 
     Ok(())
 }

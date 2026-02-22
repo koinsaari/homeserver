@@ -1,3 +1,4 @@
+mod checks;
 mod config;
 mod metadata;
 mod mover;
@@ -8,7 +9,7 @@ mod watcher;
 
 use config::Config;
 use tokio::sync::{broadcast, mpsc};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use watcher::FileEvent;
 
 #[tokio::main]
@@ -45,7 +46,10 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    if tokio::time::timeout(shutdown_timeout, all_handles).await.is_err() {
+    if tokio::time::timeout(shutdown_timeout, all_handles)
+        .await
+        .is_err()
+    {
         warn!("shutdown timed out after 30s, forcing exit");
     } else {
         info!("shutdown complete");
@@ -77,7 +81,9 @@ fn spawn_photos_pipeline(
         let config = config.photos.organizer.clone();
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
-            if let Err(e) = metadata::run_metadata(config, watcher_rx, metadata_tx, shutdown_rx).await {
+            if let Err(e) =
+                metadata::run_metadata(config, watcher_rx, metadata_tx, shutdown_rx).await
+            {
                 error!(error = %e, "photos metadata failed");
             }
         }
@@ -87,7 +93,9 @@ fn spawn_photos_pipeline(
         let config = config.photos.organizer.clone();
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
-            if let Err(e) = organizer::run_organizer(config, metadata_rx, organizer_tx, shutdown_rx).await {
+            if let Err(e) =
+                organizer::run_organizer(config, metadata_rx, organizer_tx, shutdown_rx).await
+            {
                 error!(error = %e, "photos organizer failed");
             }
         }
@@ -97,13 +105,20 @@ fn spawn_photos_pipeline(
         let config = config.photos.nextcloud.clone();
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
-            if let Err(e) = nextcloud::run_nextcloud(config, organizer_rx, output_tx, shutdown_rx).await {
+            if let Err(e) =
+                nextcloud::run_nextcloud(config, organizer_rx, output_tx, shutdown_rx).await
+            {
                 error!(error = %e, "photos nextcloud failed");
             }
         }
     });
 
-    vec![watcher_handle, metadata_handle, organizer_handle, nextcloud_handle]
+    vec![
+        watcher_handle,
+        metadata_handle,
+        organizer_handle,
+        nextcloud_handle,
+    ]
 }
 
 fn spawn_media_pipeline(
@@ -128,7 +143,8 @@ fn spawn_media_pipeline(
         let config = config.media.scanner.clone();
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
-            if let Err(e) = scanner::run_scanner(config, watcher_rx, scanner_tx, shutdown_rx).await {
+            if let Err(e) = scanner::run_scanner(config, watcher_rx, scanner_tx, shutdown_rx).await
+            {
                 error!(error = %e, "media scanner failed");
             }
         }
@@ -159,7 +175,11 @@ fn log_event(event: &FileEvent) {
                 warn!(path = %path.display(), "malware detected");
             }
         }
-        FileEvent::Enriched { path, media_type, datetime } => {
+        FileEvent::Enriched {
+            path,
+            media_type,
+            datetime,
+        } => {
             info!(
                 path = %path.display(),
                 media_type = ?media_type,

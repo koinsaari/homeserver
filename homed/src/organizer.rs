@@ -112,7 +112,12 @@ pub async fn run_organizer(
             _ = shutdown.recv() => break,
             else => break,
         };
-        let FileEvent::Enriched { path, media_type, datetime } = event else {
+        let FileEvent::Enriched {
+            path,
+            media_type,
+            datetime,
+        } = event
+        else {
             continue;
         };
 
@@ -134,16 +139,20 @@ pub async fn run_organizer(
                     apply_ownership(&target, owner, group).await;
                 }
 
-                let _ = tx.send(FileEvent::Organized {
-                    old_path: path,
-                    new_path: target,
-                }).await;
+                let _ = tx
+                    .send(FileEvent::Organized {
+                        old_path: path,
+                        new_path: target,
+                    })
+                    .await;
             }
             Err(e) => {
-                let _ = tx.send(FileEvent::Failed {
-                    path,
-                    error: format!("Failed to organize: {}", e),
-                }).await;
+                let _ = tx
+                    .send(FileEvent::Failed {
+                        path,
+                        error: format!("Failed to organize: {}", e),
+                    })
+                    .await;
             }
         }
     }

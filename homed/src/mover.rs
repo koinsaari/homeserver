@@ -77,10 +77,12 @@ pub async fn run_mover(
                     "file linked to import directory"
                 );
 
-                let _ = tx.send(FileEvent::Organized {
-                    old_path: path.clone(),
-                    new_path: destination,
-                }).await;
+                let _ = tx
+                    .send(FileEvent::Organized {
+                        old_path: path.clone(),
+                        new_path: destination,
+                    })
+                    .await;
             }
             Err(e) => {
                 warn!(
@@ -90,10 +92,12 @@ pub async fn run_mover(
                     "failed to link file"
                 );
 
-                let _ = tx.send(FileEvent::Failed {
-                    path: path.clone(),
-                    error: format!("failed to link: {}", e),
-                }).await;
+                let _ = tx
+                    .send(FileEvent::Failed {
+                        path: path.clone(),
+                        error: format!("failed to link: {}", e),
+                    })
+                    .await;
             }
         }
     }

@@ -93,16 +93,17 @@ impl Config {
 
     fn validate_watcher(watcher: &WatcherConfig, name: &str) -> Result<(), ConfigError> {
         if watcher.paths.is_empty() {
-            return Err(ConfigError::ValidationError(
-                format!("{}.watcher.paths cannot be empty", name)
-            ));
+            return Err(ConfigError::ValidationError(format!(
+                "{}.watcher.paths cannot be empty",
+                name
+            )));
         }
 
         if watcher.debounce_ms < 100 || watcher.debounce_ms > 60_000 {
-            return Err(ConfigError::ValidationError(
-                format!("{}.watcher.debounce_ms must be between 100 and 60000, got {}",
-                    name, watcher.debounce_ms)
-            ));
+            return Err(ConfigError::ValidationError(format!(
+                "{}.watcher.debounce_ms must be between 100 and 60000, got {}",
+                name, watcher.debounce_ms
+            )));
         }
 
         Ok(())

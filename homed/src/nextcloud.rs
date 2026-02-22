@@ -33,7 +33,15 @@ fn translate_path(host_path: &Path, config: &NextcloudConfig) -> Option<String> 
 /// Runs `occ files:scan --path=<path>` via docker exec.
 async fn run_occ_scan(config: &NextcloudConfig, path: &str) -> Result<(), NextcloudError> {
     let output = tokio::process::Command::new("docker")
-        .args(["exec", "--user", "www-data", &config.container_name, "php", "occ", "files:scan"])
+        .args([
+            "exec",
+            "--user",
+            "www-data",
+            &config.container_name,
+            "php",
+            "occ",
+            "files:scan",
+        ])
         .arg(format!("--path={}", path))
         .output()
         .await?;
@@ -85,9 +93,7 @@ pub async fn run_nextcloud(
         }
 
         // Scan old path's parent to remove ghost entries from Nextcloud DB
-        if let Some(old_internal) = old_path.parent()
-            .and_then(|p| translate_path(p, &config))
-        {
+        if let Some(old_internal) = old_path.parent().and_then(|p| translate_path(p, &config)) {
             if let Err(e) = run_occ_scan(&config, &old_internal).await {
                 warn!(path = %old_internal, error = %e, "nextcloud cleanup scan failed");
             }

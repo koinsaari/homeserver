@@ -9,15 +9,21 @@ use crate::config::OrganizerConfig;
 use crate::watcher::{FileEvent, MediaType};
 
 fn classify_media_type(path: &Path, config: &OrganizerConfig) -> Option<MediaType> {
-    let extension = path
-        .extension()
-        .and_then(|ext| ext.to_str())?;
+    let extension = path.extension().and_then(|ext| ext.to_str())?;
 
     let lower = extension.to_ascii_lowercase();
 
-    if config.photo_extensions.iter().any(|ext| ext.eq_ignore_ascii_case(&lower)) {
+    if config
+        .photo_extensions
+        .iter()
+        .any(|ext| ext.eq_ignore_ascii_case(&lower))
+    {
         Some(MediaType::Photo)
-    } else if config.video_extensions.iter().any(|ext| ext.eq_ignore_ascii_case(&lower)) {
+    } else if config
+        .video_extensions
+        .iter()
+        .any(|ext| ext.eq_ignore_ascii_case(&lower))
+    {
         Some(MediaType::Video)
     } else {
         None
@@ -79,10 +85,8 @@ fn extract_datetime_from_filename(path: &Path) -> Option<DateTime<FixedOffset>> 
 
     if digits.len() >= 8 {
         let date_str = &digits[..8];
-        let naive = NaiveDateTime::parse_from_str(
-            &format!("{}000000", date_str),
-            "%Y%m%d%H%M%S",
-        ).ok()?;
+        let naive =
+            NaiveDateTime::parse_from_str(&format!("{}000000", date_str), "%Y%m%d%H%M%S").ok()?;
         return Some(Utc.fix().from_utc_datetime(&naive));
     }
 
@@ -98,7 +102,10 @@ async fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
 
 /// Extracts the best available datetime by EXIF/track metadata ->
 /// filename pattern -> file modification time.
-async fn extract_best_datetime(path: &Path, media_type: MediaType) -> Option<DateTime<FixedOffset>> {
+async fn extract_best_datetime(
+    path: &Path,
+    media_type: MediaType,
+) -> Option<DateTime<FixedOffset>> {
     let exif_result = match media_type {
         MediaType::Photo => extract_photo_datetime(path),
         MediaType::Video => extract_video_datetime(path),
@@ -146,26 +153,32 @@ pub async fn run_metadata(
         };
 
         let Some(media_type) = classify_media_type(&path, &config) else {
-            let _ = tx.send(FileEvent::Failed {
-                path,
-                error: "Unsupported media type".to_string(),
-            }).await;
+            let _ = tx
+                .send(FileEvent::Failed {
+                    path,
+                    error: "Unsupported media type".to_string(),
+                })
+                .await;
             continue;
         };
 
         let Some(datetime) = extract_best_datetime(&path, media_type).await else {
-            let _ = tx.send(FileEvent::Failed {
-                path,
-                error: "Could not extract datetime".to_string(),
-            }).await;
+            let _ = tx
+                .send(FileEvent::Failed {
+                    path,
+                    error: "Could not extract datetime".to_string(),
+                })
+                .await;
             continue;
         };
 
-        let _ = tx.send(FileEvent::Enriched {
-            path,
-            media_type,
-            datetime,
-        }).await;
+        let _ = tx
+            .send(FileEvent::Enriched {
+                path,
+                media_type,
+                datetime,
+            })
+            .await;
     }
 
     Ok(())
