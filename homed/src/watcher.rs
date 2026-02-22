@@ -2,8 +2,8 @@ use crate::config::WatcherConfig;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -103,8 +103,11 @@ pub async fn run_watcher(
             Some(event) = notify_rx.recv() => {
                 if let EventKind::Create(_) | EventKind::Modify(_) = event.kind {
                     for path in event.paths {
-                        // Existence check prevents race conditions where a file is
-                        // created and immediately deleted before we process it
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            if config.ignore_extensions.iter().any(|ie| ie.eq_ignore_ascii_case(ext)) {
+                                continue;
+                            }
+                        }
                         if path.exists() && path.is_file() {
                             pending_files.insert(path, Instant::now());
                         }

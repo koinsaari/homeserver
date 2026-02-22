@@ -38,6 +38,8 @@ pub struct MediaConfig {
 pub struct WatcherConfig {
     pub paths: Vec<PathBuf>,
     pub debounce_ms: u64,
+    #[serde(default)]
+    pub ignore_extensions: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -120,6 +122,7 @@ mod tests {
                 watcher: WatcherConfig {
                     paths: vec![PathBuf::from("/tmp/photos")],
                     debounce_ms: 5000,
+                    ignore_extensions: vec![],
                 },
                 organizer: OrganizerConfig {
                     enabled: false,
@@ -143,6 +146,7 @@ mod tests {
                 watcher: WatcherConfig {
                     paths: vec![PathBuf::from("/tmp/media")],
                     debounce_ms: 5000,
+                    ignore_extensions: vec![],
                 },
                 scanner: ScannerConfig {
                     quarantine_dir: Default::default(),

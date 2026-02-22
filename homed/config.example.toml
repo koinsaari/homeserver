@@ -24,6 +24,7 @@ internal_prefix = "/USERNAME/files/Photos"
 [media.watcher]
 paths = ["/mnt/wd/media/downloads/complete"]
 debounce_ms = 5000
+ignore_extensions = ["!qb", "part"]
 
 [media.scanner]
 quarantine_dir = "/mnt/wd/media/downloads/quarantine"
