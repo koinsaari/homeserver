@@ -106,10 +106,14 @@ async fn extract_best_datetime(
     path: &Path,
     media_type: MediaType,
 ) -> Option<DateTime<FixedOffset>> {
-    let exif_result = match media_type {
-        MediaType::Photo => extract_photo_datetime(path),
-        MediaType::Video => extract_video_datetime(path),
-    };
+    let owned_path = path.to_path_buf();
+    let exif_result = tokio::task::spawn_blocking(move || match media_type {
+        MediaType::Photo => extract_photo_datetime(&owned_path),
+        MediaType::Video => extract_video_datetime(&owned_path),
+    })
+    .await
+    .ok()
+    .flatten();
 
     if let Some(dt) = exif_result {
         return Some(dt);
