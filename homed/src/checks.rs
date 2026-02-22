@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use thiserror::Error;
+use tokio::io::AsyncReadExt;
 
 const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v"];
 const MIN_VIDEO_SIZE: u64 = 1024;
@@ -19,6 +20,12 @@ pub enum ScanRejection {
 
     #[error("video file suspiciously small ({0} bytes)")]
     FileTooSmall(u64),
+
+    #[error("file type mismatch: expected .{expected}, detected .{actual}")]
+    TypeMismatch { expected: String, actual: String },
+
+    #[error("failed to read file: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 pub fn check_extension(path: &Path, allowed: &[String]) -> Result<(), ScanRejection> {
@@ -36,9 +43,13 @@ pub fn check_extension(path: &Path, allowed: &[String]) -> Result<(), ScanReject
 pub fn check_executable_extension(path: &Path) -> Result<(), ScanRejection> {
     let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
 
-    let lower = extension.to_ascii_lowercase();
-    if EXECUTABLE_EXTS.contains(&lower.as_str()) {
-        Err(ScanRejection::ExecutableExtension(lower))
+    if EXECUTABLE_EXTS
+        .iter()
+        .any(|&ext| ext.eq_ignore_ascii_case(extension))
+    {
+        Err(ScanRejection::ExecutableExtension(
+            extension.to_ascii_lowercase(),
+        ))
     } else {
         Ok(())
     }
@@ -53,6 +64,40 @@ pub fn check_file_size(path: &Path, size: u64) -> Result<(), ScanRejection> {
     } else {
         Ok(())
     }
+}
+
+pub async fn check_file_type(path: &Path) -> Result<(), ScanRejection> {
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut buf = [0u8; 8192];
+    let n = file.read(&mut buf).await?;
+
+    match infer::get(&buf[..n]) {
+        Some(kind) if is_compatible(&extension, kind.extension()) => Ok(()),
+        Some(kind) => Err(ScanRejection::TypeMismatch {
+            expected: extension,
+            actual: kind.extension().to_string(),
+        }),
+        None => Ok(()),
+    }
+}
+
+/// infer detects MKV as "webm" and MOV as "mp4" since they share container formats
+fn is_compatible(claimed: &str, detected: &str) -> bool {
+    if claimed == detected {
+        return true;
+    }
+
+    const ALIASES: &[&[&str]] = &[&["mkv", "webm"], &["mp4", "m4v", "mov"], &["mpg", "mpeg"]];
+
+    ALIASES
+        .iter()
+        .any(|group| group.contains(&claimed) && group.contains(&detected))
 }
 
 #[cfg(test)]
@@ -116,5 +161,50 @@ mod tests {
     #[test]
     fn test_small_subtitle_passes() {
         assert!(check_file_size(Path::new("subs.srt"), 100).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_pe_disguised_as_mkv_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fake.mkv");
+        tokio::fs::write(&path, b"MZ\x90\x00fake_pe_content")
+            .await
+            .unwrap();
+        let result = check_file_type(&path).await;
+        assert!(matches!(result, Err(ScanRejection::TypeMismatch { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_elf_disguised_as_mp4_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fake.mp4");
+        let mut elf_header = [0u8; 64];
+        elf_header[0..4].copy_from_slice(&[0x7F, 0x45, 0x4C, 0x46]);
+        elf_header[4] = 0x02; // 64-bit
+        elf_header[5] = 0x01; // little-endian
+        elf_header[6] = 0x01; // version
+        tokio::fs::write(&path, &elf_header).await.unwrap();
+        let result = check_file_type(&path).await;
+        assert!(matches!(result, Err(ScanRejection::TypeMismatch { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_subtitle_text_passes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("subs.srt");
+        tokio::fs::write(&path, b"1\n00:00:01,000 --> 00:00:02,000\nHello")
+            .await
+            .unwrap();
+        assert!(check_file_type(&path).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_real_mkv_header_passes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("real.mkv");
+        tokio::fs::write(&path, b"\x1a\x45\xdf\xa3matroska")
+            .await
+            .unwrap();
+        assert!(check_file_type(&path).await.is_ok());
     }
 }

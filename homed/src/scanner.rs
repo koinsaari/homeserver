@@ -32,7 +32,7 @@ pub async fn run_scanner(
             continue;
         };
 
-        if let Err(rejection) = check_file(&path, size, &config) {
+        if let Err(rejection) = check_file(&path, size, &config).await {
             if config.block_executables
                 || !matches!(rejection, checks::ScanRejection::ExecutableExtension(_))
             {
@@ -54,7 +54,11 @@ pub async fn run_scanner(
     Ok(())
 }
 
-fn check_file(path: &Path, size: u64, config: &ScannerConfig) -> Result<(), checks::ScanRejection> {
+async fn check_file(
+    path: &Path,
+    size: u64,
+    config: &ScannerConfig,
+) -> Result<(), checks::ScanRejection> {
     checks::check_extension(path, &config.allowed_extensions)?;
 
     if config.block_executables {
@@ -62,6 +66,7 @@ fn check_file(path: &Path, size: u64, config: &ScannerConfig) -> Result<(), chec
     }
 
     checks::check_file_size(path, size)?;
+    checks::check_file_type(path).await?;
 
     Ok(())
 }
