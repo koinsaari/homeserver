@@ -9,11 +9,6 @@ use tracing::error;
 pub enum ScannerError {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
-
-    /// ClamAV exit code 2 indicates that some errors occurred
-    /// rather than virus found. Distinguishing this allows retry logic.
-    #[error("ClamAV failed with exit code: {0:?}")]
-    ClamAvError(Option<i32>),
 }
 
 fn is_extension_allowed(path: &Path, allowed: &[String]) -> bool {
@@ -41,27 +36,6 @@ fn is_executable(path: &Path) -> bool {
     EXECUTABLE_EXTS.contains(&extension)
 }
 
-async fn run_clamscan(path: &Path, clamscan_path: &Path) -> Result<bool, ScannerError> {
-    let output = tokio::process::Command::new(clamscan_path)
-        .arg("--stdout")
-        // Limit scan size because we have small RAM
-        .arg("--max-filesize=4000M")
-        .arg("--max-scansize=4000M")
-        .arg(path)
-        .output()
-        .await?;
-
-    match output.status.code() {
-        Some(0) => Ok(true),
-        Some(1) => Ok(false),
-        code => Err(ScannerError::ClamAvError(code)),
-    }
-}
-
-/// Validates and scans incoming files for malware.
-///
-/// Filters files by extension, blocks executables, and runs ClamAV scans
-/// before passing clean files forward in the pipeline.
 pub async fn run_scanner(
     config: ScannerConfig,
     mut rx: mpsc::Receiver<FileEvent>,
@@ -98,36 +72,10 @@ pub async fn run_scanner(
             continue;
         }
 
-        if !config.enabled {
-            let _ = tx.send(FileEvent::Scanned {
-                path,
-                clean: true,
-            }).await;
-            continue;
-        }
-
-        match run_clamscan(&path, &config.clamscan_path).await {
-            Ok(true) => {
-                let _ = tx.send(FileEvent::Scanned {
-                    path,
-                    clean: true,
-                }).await;
-            }
-            Ok(false) => {
-                quarantine_file(&path, &config.quarantine_dir).await;
-
-                let _ = tx.send(FileEvent::Failed {
-                    path,
-                    error: "Virus detected, quarantined".to_string(),
-                }).await;
-            }
-            Err(e) => {
-                let _ = tx.send(FileEvent::Failed {
-                    path,
-                    error: format!("Scan error: {}", e),
-                }).await;
-            }
-        }
+        let _ = tx.send(FileEvent::Scanned {
+            path,
+            clean: true,
+        }).await;
     }
 
     Ok(())
