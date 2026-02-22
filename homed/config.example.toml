@@ -27,7 +27,7 @@ debounce_ms = 5000
 
 [media.scanner]
 quarantine_dir = "/mnt/wd/media/downloads/quarantine"
-allowed_extensions = ["mkv", "mp4", "avi", "mov", "srt", "sub", "ass", "ssa", "vtt"]
+allowed_extensions = ["mkv", "mp4", "mov", "webm", "flac", "mp3", "m4a", "epub", "pdf", "srt", "ass"]
 block_executables = true
 
 [media.mover]

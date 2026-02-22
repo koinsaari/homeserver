@@ -3,7 +3,8 @@ use std::path::Path;
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
 
-const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v"];
+const VIDEO_EXTS: &[&str] = &["mkv", "mp4", "mov", "webm"];
+const SUBTITLE_EXTS: &[&str] = &["srt", "ass"];
 const MIN_VIDEO_SIZE: u64 = 1024;
 
 const EXECUTABLE_EXTS: &[&str] = &[
@@ -23,6 +24,12 @@ pub enum ScanRejection {
 
     #[error("file type mismatch: expected .{expected}, detected .{actual}")]
     TypeMismatch { expected: String, actual: String },
+
+    #[error("unrecognized file type for .{0}")]
+    UnrecognizedType(String),
+
+    #[error("subtitle file is not valid UTF-8")]
+    InvalidSubtitleEncoding,
 
     #[error("failed to read file: {0}")]
     IoError(#[from] std::io::Error),
@@ -76,14 +83,22 @@ pub async fn check_file_type(path: &Path) -> Result<(), ScanRejection> {
     let mut file = tokio::fs::File::open(path).await?;
     let mut buf = [0u8; 8192];
     let n = file.read(&mut buf).await?;
+    let bytes = &buf[..n];
 
-    match infer::get(&buf[..n]) {
+    match infer::get(bytes) {
         Some(kind) if is_compatible(&extension, kind.extension()) => Ok(()),
         Some(kind) => Err(ScanRejection::TypeMismatch {
             expected: extension,
             actual: kind.extension().to_string(),
         }),
-        None => Ok(()),
+        None if SUBTITLE_EXTS.contains(&extension.as_str()) => {
+            if std::str::from_utf8(bytes).is_ok() {
+                Ok(())
+            } else {
+                Err(ScanRejection::InvalidSubtitleEncoding)
+            }
+        }
+        None => Err(ScanRejection::UnrecognizedType(extension)),
     }
 }
 
@@ -93,7 +108,7 @@ fn is_compatible(claimed: &str, detected: &str) -> bool {
         return true;
     }
 
-    const ALIASES: &[&[&str]] = &[&["mkv", "webm"], &["mp4", "m4v", "mov"], &["mpg", "mpeg"]];
+    const ALIASES: &[&[&str]] = &[&["mkv", "webm"], &["mp4", "mov", "m4a"]];
 
     ALIASES
         .iter()
@@ -206,5 +221,30 @@ mod tests {
             .await
             .unwrap();
         assert!(check_file_type(&path).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_unrecognized_video_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mystery.mkv");
+        tokio::fs::write(&path, b"not a real video header at all")
+            .await
+            .unwrap();
+        let result = check_file_type(&path).await;
+        assert!(matches!(result, Err(ScanRejection::UnrecognizedType(_))));
+    }
+
+    #[tokio::test]
+    async fn test_binary_subtitle_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.srt");
+        tokio::fs::write(&path, &[0xFF, 0xFE, 0x00, 0x80, 0xC0])
+            .await
+            .unwrap();
+        let result = check_file_type(&path).await;
+        assert!(matches!(
+            result,
+            Err(ScanRejection::InvalidSubtitleEncoding)
+        ));
     }
 }
