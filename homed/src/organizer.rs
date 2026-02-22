@@ -118,6 +118,7 @@ pub async fn run_organizer(
             datetime,
         } = event
         else {
+            let _ = tx.send(event).await;
             continue;
         };
 
