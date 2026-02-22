@@ -27,11 +27,11 @@ jobs:
         with:
           workspaces: homed
 
-      - name: Build
-        run: cargo build --release --target x86_64-unknown-linux-musl --manifest-path homed/Cargo.toml
-
       - name: Test
         run: cargo test --manifest-path homed/Cargo.toml
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-musl --manifest-path homed/Cargo.toml
 
       - name: Get version
         id: version
