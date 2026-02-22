@@ -16,6 +16,7 @@ nom-exif = "2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 infer = "0.19.0"
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls-tls"] }
 
 [profile.release]
 opt-level = "z"

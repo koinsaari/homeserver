@@ -18,6 +18,7 @@ pub enum ConfigError {
 pub struct Config {
     pub photos: PhotosConfig,
     pub media: MediaConfig,
+    pub alerts: AlertsConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -75,6 +76,14 @@ pub struct MoverConfig {
     pub enabled: bool,
     pub source: PathBuf,
     pub destination: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AlertsConfig {
+    pub enabled: bool,
+    pub url: String,
+    pub topic: String,
+    pub token: String,
 }
 
 impl Config {
@@ -158,6 +167,12 @@ mod tests {
                     source: Default::default(),
                     destination: Default::default(),
                 },
+            },
+            alerts: AlertsConfig {
+                enabled: false,
+                url: "https://ntfy.example.com".to_string(),
+                topic: "test".to_string(),
+                token: "test-token".to_string(),
             },
         }
     }

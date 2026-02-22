@@ -35,3 +35,10 @@ block_executables = true
 enabled = true
 source = "/mnt/wd/media/downloads/complete"
 destination = "/mnt/wd/media/downloads/ready"
+
+# Alerts: push notifications via ntfy
+[alerts]
+enabled = true
+url = "https://ntfy.example.com"
+topic = "homed"
+token = "YOUR_NTFY_TOKEN"

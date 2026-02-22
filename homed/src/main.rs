@@ -1,3 +1,4 @@
+mod alerts;
 mod checks;
 mod config;
 mod metadata;
@@ -12,6 +13,8 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{error, info, warn};
 use watcher::FileEvent;
 
+use alerts::send_alert_for_event;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -19,6 +22,9 @@ async fn main() -> anyhow::Result<()> {
     info!("homed starting up");
 
     let config = Config::load("/opt/homed/config.toml")?;
+
+    let http_client = reqwest::Client::new();
+    let alerts_config = config.alerts.clone();
 
     let (shutdown_tx, _) = broadcast::channel(1);
     let (output_tx, mut output_rx) = mpsc::channel::<FileEvent>(100);
@@ -30,7 +36,10 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         tokio::select! {
-            Some(event) = output_rx.recv() => log_event(&event),
+            Some(event) = output_rx.recv() => {
+                log_event(&event);
+                send_alert_for_event(&http_client, &alerts_config, &event).await;
+            }
             _ = tokio::signal::ctrl_c() => {
                 info!("received shutdown signal, draining pipelines");
                 shutdown_tx.send(()).ok();
