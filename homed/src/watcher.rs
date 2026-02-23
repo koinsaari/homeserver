@@ -97,6 +97,15 @@ pub async fn run_watcher(
     let mut pending_files: HashMap<PathBuf, Instant> = HashMap::new();
     let mut check_interval = tokio::time::interval(Duration::from_millis(500));
 
+    // Pick up files that arrived while homed was not running
+    let ready_at = Instant::now() - debounce_time;
+    for watch_path in &config.paths {
+        scan_existing_files(watch_path, &config.ignore_extensions, ready_at, &mut pending_files);
+    }
+    if !pending_files.is_empty() {
+        info!(count = pending_files.len(), "found existing files on startup");
+    }
+
     loop {
         tokio::select! {
             // Handle incoming kernel events. We only care about creation/modification
@@ -161,5 +170,40 @@ pub async fn run_watcher(
                 return Ok(());
             }
         }
+    }
+}
+
+fn scan_existing_files(
+    dir: &PathBuf,
+    ignore_extensions: &[String],
+    timestamp: Instant,
+    pending: &mut HashMap<PathBuf, Instant>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.is_dir() {
+            scan_existing_files(&path, ignore_extensions, timestamp, pending);
+            continue;
+        }
+
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            if ignore_extensions
+                .iter()
+                .any(|ie| ie.eq_ignore_ascii_case(ext))
+            {
+                continue;
+            }
+        }
+
+        pending.insert(path, timestamp);
     }
 }

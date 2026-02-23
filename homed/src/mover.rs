@@ -69,6 +69,11 @@ pub async fn run_mover(
 
         let destination = config.destination.join(relative);
 
+        if destination.exists() {
+            let _ = tx.send(event).await;
+            continue;
+        }
+
         match hardlink_or_copy(path, &destination).await {
             Ok(()) => {
                 info!(
