@@ -112,6 +112,11 @@ pub async fn run_watcher(
             Some(event) = notify_rx.recv() => {
                 if let EventKind::Create(_) | EventKind::Modify(_) = event.kind {
                     for path in event.paths {
+                        if path.components().any(|c| {
+                            c.as_os_str().to_string_lossy().starts_with('.')
+                        }) {
+                            continue;
+                        }
                         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                             if config.ignore_extensions.iter().any(|ie| ie.eq_ignore_ascii_case(ext)) {
                                 continue;
@@ -185,8 +190,13 @@ fn scan_existing_files(
 
     for entry in entries.flatten() {
         let path = entry.path();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
 
         if path.is_dir() {
+            if name_str.starts_with('.') {
+                continue;
+            }
             scan_existing_files(&path, ignore_extensions, timestamp, pending);
             continue;
         }
