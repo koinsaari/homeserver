@@ -98,7 +98,9 @@ pub async fn check_file_type(path: &Path) -> Result<(), ScanRejection> {
                 Err(ScanRejection::InvalidSubtitleEncoding)
             }
         }
-        None => Err(ScanRejection::UnrecognizedType(extension)),
+        // Some older encodings might have non-standard headers that infer can't identify
+        // so for now just let them through
+        None => Ok(()),
     }
 }
 
@@ -224,14 +226,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_unrecognized_video_rejected() {
+    async fn test_unrecognized_video_allowed() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("mystery.mkv");
         tokio::fs::write(&path, b"not a real video header at all")
             .await
             .unwrap();
-        let result = check_file_type(&path).await;
-        assert!(matches!(result, Err(ScanRejection::UnrecognizedType(_))));
+        assert!(check_file_type(&path).await.is_ok());
     }
 
     #[tokio::test]

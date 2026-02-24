@@ -2,8 +2,8 @@ use crate::config::WatcherConfig;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -106,10 +106,18 @@ pub async fn run_watcher(
     // Pick up files that arrived while homed was not running
     let ready_at = Instant::now() - debounce_time;
     for watch_path in &config.paths {
-        scan_existing_files(watch_path, &config.ignore_extensions, ready_at, &mut pending_files);
+        scan_existing_files(
+            watch_path,
+            &config.ignore_extensions,
+            ready_at,
+            &mut pending_files,
+        );
     }
     if !pending_files.is_empty() {
-        info!(count = pending_files.len(), "found existing files on startup");
+        info!(
+            count = pending_files.len(),
+            "found existing files on startup"
+        );
     }
 
     loop {
@@ -152,9 +160,13 @@ pub async fn run_watcher(
                     pending_files.remove(&path);
 
                     if let Ok(metadata) = tokio::fs::metadata(&path).await {
+                        let size = metadata.len();
+                        if size == 0 {
+                            continue;
+                        }
                         let event = FileEvent::Detected {
                             path: path.clone(),
-                            size: metadata.len(),
+                            size,
                         };
 
                         if tx.send(event).await.is_err() {

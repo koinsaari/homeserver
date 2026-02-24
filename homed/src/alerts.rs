@@ -28,9 +28,6 @@ pub async fn send_alert_for_event(
     }
 
     let message = match event {
-        FileEvent::Failed { path, error } => {
-            format!("Failed: {} — {}", path.display(), error)
-        }
         FileEvent::Organized { old_path, new_path } => {
             let filename = old_path
                 .file_name()
