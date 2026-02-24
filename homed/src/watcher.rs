@@ -83,12 +83,18 @@ pub async fn run_watcher(
                 .expect("Failed to watch path");
         }
 
-        while let Ok(event) = std_rx.recv_timeout(Duration::from_secs(1)) {
+        loop {
             if thread_stop.load(Ordering::Relaxed) {
                 break;
             }
-            if notify_tx.blocking_send(event).is_err() {
-                break;
+            match std_rx.recv_timeout(Duration::from_secs(1)) {
+                Ok(event) => {
+                    if notify_tx.blocking_send(event).is_err() {
+                        break;
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }
     });
@@ -110,7 +116,7 @@ pub async fn run_watcher(
         tokio::select! {
             // Handle incoming kernel events. We only care about creation/modification
             Some(event) = notify_rx.recv() => {
-                if let EventKind::Create(_) | EventKind::Modify(_) = event.kind {
+                if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
                     for path in event.paths {
                         if path.components().any(|c| {
                             c.as_os_str().to_string_lossy().starts_with('.')
@@ -202,6 +208,10 @@ fn scan_existing_files(
         }
 
         if !path.is_file() {
+            continue;
+        }
+
+        if name_str.starts_with('.') {
             continue;
         }
 
