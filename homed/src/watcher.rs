@@ -36,6 +36,10 @@ pub enum FileEvent {
         old_path: PathBuf,
         new_path: PathBuf,
     },
+    Cleaned {
+        path: PathBuf,
+        reason: String,
+    },
     Failed {
         path: PathBuf,
         error: String,

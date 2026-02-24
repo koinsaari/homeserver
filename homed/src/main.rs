@@ -2,7 +2,6 @@ mod alerts;
 mod checks;
 mod config;
 mod metadata;
-mod mover;
 mod nextcloud;
 mod organizer;
 mod scanner;
@@ -136,7 +135,6 @@ fn spawn_media_pipeline(
     output_tx: mpsc::Sender<FileEvent>,
 ) -> Vec<tokio::task::JoinHandle<()>> {
     let (watcher_tx, watcher_rx) = mpsc::channel(100);
-    let (scanner_tx, scanner_rx) = mpsc::channel(100);
 
     let watcher_handle = tokio::spawn({
         let config = config.media.watcher.clone();
@@ -152,24 +150,13 @@ fn spawn_media_pipeline(
         let config = config.media.scanner.clone();
         let shutdown_rx = shutdown_tx.subscribe();
         async move {
-            if let Err(e) = scanner::run_scanner(config, watcher_rx, scanner_tx, shutdown_rx).await
-            {
+            if let Err(e) = scanner::run_scanner(config, watcher_rx, output_tx, shutdown_rx).await {
                 error!(error = %e, "media scanner failed");
             }
         }
     });
 
-    let mover_handle = tokio::spawn({
-        let config = config.media.mover.clone();
-        let shutdown_rx = shutdown_tx.subscribe();
-        async move {
-            if let Err(e) = mover::run_mover(config, scanner_rx, output_tx, shutdown_rx).await {
-                error!(error = %e, "media mover failed");
-            }
-        }
-    });
-
-    vec![watcher_handle, scanner_handle, mover_handle]
+    vec![watcher_handle, scanner_handle]
 }
 
 fn log_event(event: &FileEvent) {
@@ -202,6 +189,9 @@ fn log_event(event: &FileEvent) {
                 to = %new_path.display(),
                 "file organized"
             );
+        }
+        FileEvent::Cleaned { path, reason } => {
+            info!(path = %path.display(), reason, "file cleaned");
         }
         FileEvent::Failed { path, error } => {
             warn!(path = %path.display(), error, "processing failed");

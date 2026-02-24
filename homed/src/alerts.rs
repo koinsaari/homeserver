@@ -36,6 +36,13 @@ pub async fn send_alert_for_event(
             let dest = new_path.display();
             format!("Organized: {filename} → {dest}")
         }
+        FileEvent::Failed { path, error } => {
+            let filename = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.display().to_string());
+            format!("Quarantined: {filename} — {error}")
+        }
         _ => return,
     };
 

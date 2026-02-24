@@ -20,9 +20,9 @@ username = "USERNAME"
 data_dir = "/var/lib/nextcloud/data/USERNAME/files/Photos"
 internal_prefix = "/USERNAME/files/Photos"
 
-# Media pipeline: torrent downloads → scan → hardlink to ready/
+# Media pipeline: post-import guard on library directories
 [media.watcher]
-paths = ["/mnt/wd/media/downloads/complete"]
+paths = ["/mnt/wd/media/Movies", "/mnt/wd/media/TV"]
 debounce_ms = 5000
 ignore_extensions = ["!qb", "part"]
 
@@ -30,11 +30,8 @@ ignore_extensions = ["!qb", "part"]
 quarantine_dir = "/mnt/wd/media/downloads/quarantine"
 allowed_extensions = ["mkv", "mp4", "mov", "webm", "flac", "mp3", "m4a", "epub", "pdf", "srt", "ass"]
 block_executables = true
-
-[media.mover]
-enabled = true
-source = "/mnt/wd/media/downloads/complete"
-destination = "/mnt/wd/media/downloads/ready"
+delete_junk = true
+junk_extensions = ["nfo", "txt", "jpg", "jpeg", "png"]
 
 # Alerts: push notifications via ntfy
 [alerts]

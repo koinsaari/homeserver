@@ -32,7 +32,6 @@ pub struct PhotosConfig {
 pub struct MediaConfig {
     pub watcher: WatcherConfig,
     pub scanner: ScannerConfig,
-    pub mover: MoverConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -48,6 +47,9 @@ pub struct ScannerConfig {
     pub quarantine_dir: PathBuf,
     pub allowed_extensions: Vec<String>,
     pub block_executables: bool,
+    pub delete_junk: bool,
+    #[serde(default)]
+    pub junk_extensions: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -69,13 +71,6 @@ pub struct NextcloudConfig {
     pub username: String,
     pub data_dir: PathBuf,
     pub internal_prefix: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct MoverConfig {
-    pub enabled: bool,
-    pub source: PathBuf,
-    pub destination: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -161,11 +156,8 @@ mod tests {
                     quarantine_dir: Default::default(),
                     allowed_extensions: vec![],
                     block_executables: false,
-                },
-                mover: MoverConfig {
-                    enabled: false,
-                    source: Default::default(),
-                    destination: Default::default(),
+                    delete_junk: false,
+                    junk_extensions: vec![],
                 },
             },
             alerts: AlertsConfig {

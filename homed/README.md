@@ -19,16 +19,19 @@ Watches a directory (e.g. Nextcloud uploads) for new photos and videos, then:
 
 ### Media Pipeline
 
-Watches a directory (e.g. torrent download folder) for completed downloads, then:
+Post-import guard on library directories (Movies/, TV/). Radarr/Sonarr handle importing from downloads — homed watches the library directories and cleans up after them:
 
-1. **Watcher** detects new files after debounce, ignoring incomplete downloads
-2. **Scanner** validates files against allowed extensions, blocks executables, checks minimum file sizes for videos, and verifies file headers match claimed extensions (detects disguised executables). Rejected files are moved to a quarantine directory
-3. **Mover** hardlinks clean files to a destination directory, falling back to copy for cross-device moves
+1. **Watcher** detects new files after debounce
+2. **Scanner** processes each file:
+   - Deletes junk files (`.nfo`, `.txt`, cover images) that arrived with the import
+   - Quarantines executables and files with mismatched headers
+   - Validates allowed extensions and file sizes
+   - Removes empty directories left behind after cleanup
 
 ### Alerts
 
 Sends push notifications via [ntfy](https://ntfy.sh) for:
-- **Failed** events: a file was quarantined or couldn't be processed
+- **Quarantined** events: a suspicious file was moved to quarantine
 - **Organized** events: a photo was sorted into Nextcloud
 
 ## Architecture
@@ -40,9 +43,9 @@ Sends push notifications via [ntfy](https://ntfy.sh) for:
                 └──────┘  └──────────┘  └───────────┘  └───────────┘  │
                                                                        ├─> Output (log + alert)
                           Media Pipeline                               │
-                ┌──────┐  ┌─────────┐  ┌───────┐                     │
-  filesystem ──>│Watch │─>│ Scanner │─>│ Mover │──────────────────────┘
-                └──────┘  └─────────┘  └───────┘
+                ┌──────┐  ┌─────────┐                                │
+  filesystem ──>│Watch │─>│ Scanner │──────────────────────────────────┘
+                └──────┘  └─────────┘
 ```
 
 Each stage is a Tokio task connected by mpsc channels. Events flow through the pipeline and any stage can emit `Failed` events which propagate to the output for logging and alerting. Graceful shutdown is handled via a broadcast channel on `SIGINT`.
@@ -89,15 +92,14 @@ cp config.example.toml /opt/homed/config.toml
 
 | Key | Description |
 |-----|-------------|
-| `media.watcher.paths` | Directories to watch for downloads |
+| `media.watcher.paths` | Library directories to watch (e.g. Movies/, TV/) |
 | `media.watcher.debounce_ms` | Debounce period in milliseconds |
 | `media.watcher.ignore_extensions` | Extensions to skip (e.g. `!qb`, `part`) |
-| `media.scanner.quarantine_dir` | Where rejected files are moved |
+| `media.scanner.quarantine_dir` | Where suspicious files are moved |
 | `media.scanner.allowed_extensions` | Whitelist of allowed file extensions |
 | `media.scanner.block_executables` | Block files with executable extensions |
-| `media.mover.enabled` | Enable/disable file linking |
-| `media.mover.source` | Source directory (must match watcher path) |
-| `media.mover.destination` | Destination for hardlinked files |
+| `media.scanner.delete_junk` | Delete files with junk extensions |
+| `media.scanner.junk_extensions` | Extensions to treat as junk (e.g. `nfo`, `txt`, `jpg`) |
 
 ### Alerts
 
