@@ -1,6 +1,6 @@
 # Photos pipeline: Nextcloud uploads → EXIF rename → date folders → occ scan
 [photos.watcher]
-paths = ["/mnt/wd/media/downloads/complete"]
+paths = ["/var/lib/nextcloud/data/USERNAME/files/Photos/Camera"]
 debounce_ms = 5000
 
 [photos.organizer]
