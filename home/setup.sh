@@ -171,7 +171,7 @@ chown -R "$REAL_USER:$REAL_USER" "$SCRIPT_DIR/traefik"
 mkdir -p /var/lib/nextcloud/data
 chown -R "$REAL_USER:$REAL_USER" /var/lib/nextcloud/data 2>/dev/null || true
 
-mkdir -p /mnt/wd/media/{downloads/complete,downloads/quarantine,Movies,TV}
+mkdir -p /mnt/wd/media/{downloads,quarantine,Movies,TV}
 chown -R "$REAL_USER:$REAL_USER" /mnt/wd/media 2>/dev/null || true
 
 echo ""
