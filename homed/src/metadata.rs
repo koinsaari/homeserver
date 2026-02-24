@@ -127,10 +127,7 @@ async fn extract_best_datetime(
 }
 
 #[derive(Debug, Error)]
-pub enum MetadataError {
-    #[error("Channel closed")]
-    ChannelClosed,
-}
+pub enum MetadataError {}
 
 /// Classifies files as photo/video and extracts timestamps.
 ///

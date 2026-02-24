@@ -25,9 +25,6 @@ pub enum ScanRejection {
     #[error("file type mismatch: expected .{expected}, detected .{actual}")]
     TypeMismatch { expected: String, actual: String },
 
-    #[error("unrecognized file type for .{0}")]
-    UnrecognizedType(String),
-
     #[error("subtitle file is not valid UTF-8")]
     InvalidSubtitleEncoding,
 
