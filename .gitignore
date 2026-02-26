@@ -6,3 +6,5 @@ target
 .idea/
 .DS_Store
 homed/config.toml
+vps/authelia/secrets/
+vps/authelia/users_database.yml

@@ -42,7 +42,7 @@ echo "Using user: $NEW_USER"
 
 if [ "$CURRENT_USER" = "root" ]; then
     apt update && apt upgrade -y
-    apt install -y curl git ufw ca-certificates gnupg sudo
+    apt install -y curl git ufw ca-certificates gnupg sudo tree
 else
     echo "Skipping apt operations (run as root for system updates)"
 fi
@@ -95,9 +95,17 @@ fi
 echo "Initializing stack directories and network..."
 docker network create proxy-net || true
 
-mkdir -p ntfy_data ntfy_cache mollysocket_data caddy_data caddy_config
-chown -R 1000:1000 ntfy_data ntfy_cache caddy_data caddy_config
-chmod -R 700 mollysocket_data
+mkdir -p ntfy_data ntfy_cache mollysocket_data caddy_data caddy_config authelia_data authelia/secrets
+chown -R 1000:1000 ntfy_data ntfy_cache caddy_data caddy_config authelia_data
+chmod -R 700 mollysocket_data authelia_data authelia/secrets
+
+if [ ! -f authelia/secrets/jwt_secret ]; then
+    echo "Generating Authelia secrets..."
+    openssl rand -hex 32 > authelia/secrets/jwt_secret
+    openssl rand -hex 32 > authelia/secrets/session_secret
+    openssl rand -hex 32 > authelia/secrets/storage_encryption_key
+    chmod 600 authelia/secrets/*
+fi
 
 echo ""
 echo "Setup complete!"

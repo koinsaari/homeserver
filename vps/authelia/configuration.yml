@@ -1,0 +1,39 @@
+server:
+  address: 'tcp://:9091'
+
+log:
+  level: 'info'
+
+totp:
+  issuer: 'authelia.com'
+  period: 30
+  skew: 1
+
+authentication_backend:
+  file:
+    path: '/config/users_database.yml'
+    password:
+      algorithm: 'argon2id'
+
+access_control:
+  default_policy: 'one_factor'
+  rules:
+    - domain: 'netbird.{{ env "DOMAIN" }}'
+      policy: 'two_factor'
+
+session:
+  cookies:
+    - name: 'authelia_session'
+      domain: '{{ env "DOMAIN" }}'
+      authelia_url: 'https://auth.{{ env "DOMAIN" }}'
+      expiration: '7d'
+      inactivity: '24h'
+      remember_me: '30d'
+
+storage:
+  local:
+    path: '/data/db.sqlite3'
+
+notifier:
+  filesystem:
+    filename: '/data/notification.txt'

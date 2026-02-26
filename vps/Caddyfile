@@ -2,6 +2,10 @@
     email {$ACME_EMAIL}
 }
 
+auth.{$DOMAIN} {
+    reverse_proxy authelia:9091
+}
+
 netbird.{$DOMAIN} {
     # Native gRPC (needs HTTP/2 cleartext to backend)
     @grpc header Content-Type application/grpc*
@@ -11,7 +15,11 @@ netbird.{$DOMAIN} {
     @backend path /relay* /ws-proxy/* /api/* /oauth2/*
     reverse_proxy @backend netbird-server:80
 
-    # Dashboard (everything else)
+    # Dashboard
+    forward_auth authelia:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+    }
     reverse_proxy /* netbird-dashboard:80
 }
 
