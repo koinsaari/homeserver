@@ -114,7 +114,7 @@ cp config.example.toml /opt/homed/config.toml
 
 ### Fresh Machine
 
-The `home/setup.sh` script handles installation automatically: downloads the latest release binary, copies the example config, installs the systemd service, and enables it.
+The `home/services/setup.sh` script handles installation automatically: downloads the latest release binary, copies the example config, installs the systemd service, and enables it.
 
 After running setup, edit `/opt/homed/config.toml` with your actual paths and credentials, then start:
 
@@ -127,7 +127,7 @@ sudo systemctl start homed
 After pushing changes to `main`, the GitHub Actions workflow builds a new release. Deploy on the server:
 
 ```bash
-cd ~/Homeserver/homed
+cd ~/Homeserver/home/homed
 bash deploy.sh
 ```
 
@@ -151,7 +151,7 @@ journalctl -u homed -f
 Requires Rust 1.85+:
 
 ```bash
-cd homed
+cd home/homed
 cargo build --release
 ```
 

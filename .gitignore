@@ -5,6 +5,6 @@ target
 **/*.rs.bk
 .idea/
 .DS_Store
-homed/config.toml
+home/homed/config.toml
 vps/authelia/secrets/
 vps/authelia/users_database.yml
