@@ -325,7 +325,7 @@ services:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 512m
     security_opt:
       - no-new-privileges:true
     cap_drop:
