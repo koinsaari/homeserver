@@ -32,7 +32,7 @@ echo ""
 echo "[1/8] Updating system..."
 apt-get update
 apt-get upgrade -y
-apt-get install -y curl ufw fail2ban unattended-upgrades git htop ncdu jq rsync tree smartmontools parted zram-tools
+apt-get install -y curl ufw fail2ban unattended-upgrades git htop ncdu jq rsync tree smartmontools parted zram-tools rclone cryptsetup
 
 echo ""
 echo "[2/8] Intel Quick Sync GPU setup..."

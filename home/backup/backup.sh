@@ -24,6 +24,30 @@ send_alert() {
     fi
 }
 
+check_disk_space() {
+    local mount="$1"
+    local min_gb="${2:-10}"
+
+    if ! mountpoint -q "$mount" 2>/dev/null; then
+        log "Error: $mount is not mounted"
+        return 1
+    fi
+
+    local available_kb
+    available_kb=$(df -k "$mount" | awk 'NR==2 {print $4}')
+    available_kb="${available_kb:-0}"
+    local available_gb=$((available_kb / 1024 / 1024))
+
+    if [ "$available_gb" -lt "$min_gb" ]; then
+        log "Warning: Only ${available_gb}GB available on backup drive (minimum: ${min_gb}GB)"
+        send_alert "high" "Backup warning: only ${available_gb}GB free on backup drive"
+        return 1
+    fi
+
+    log "Disk space: ${available_gb}GB available"
+    return 0
+}
+
 cleanup() {
     if mountpoint -q "$BACKUP_MOUNT" 2>/dev/null; then
         log "Unmounting $BACKUP_MOUNT"
@@ -50,8 +74,21 @@ source "$CONFIG_FILE"
 : "${BACKUP_KEYFILE:=/etc/backup/backup.key}"
 : "${BACKUP_SOURCES:?BACKUP_SOURCES not set in $CONFIG_FILE}"
 : "${ALERT_ON_MISSING:=false}"
+: "${MIN_DISK_SPACE_GB:=10}"
+: "${VERIFY_BACKUP:=true}"
 
 DRIVE_PATH="/dev/disk/by-uuid/$BACKUP_DRIVE_UUID"
+
+for cmd in rclone cryptsetup; do
+    if ! command -v "$cmd" &>/dev/null; then
+        log "$cmd not found, installing..."
+        apt-get update -qq && apt-get install -y -qq "$cmd"
+        if ! command -v "$cmd" &>/dev/null; then
+            log "Error: Failed to install $cmd"
+            exit 1
+        fi
+    fi
+done
 
 if [ ! -e "$DRIVE_PATH" ]; then
     log "Drive not connected (UUID: $BACKUP_DRIVE_UUID)"
@@ -71,22 +108,35 @@ START_TIME=$(date +%s)
 log "Starting backup"
 
 log "Opening LUKS partition"
-if ! cryptsetup open "$DRIVE_PATH" backup-vault --key-file "$BACKUP_KEYFILE"; then
-    log "Error: Failed to unlock drive"
-    send_alert "urgent" "Backup FAILED: could not unlock drive"
-    exit 1
+if [ -e /dev/mapper/backup-vault ]; then
+    log "LUKS already open (previous run?), continuing"
+else
+    if ! cryptsetup open "$DRIVE_PATH" backup-vault --key-file "$BACKUP_KEYFILE"; then
+        log "Error: Failed to unlock drive"
+        send_alert "urgent" "Backup FAILED: could not unlock drive"
+        exit 1
+    fi
 fi
 
 log "Mounting filesystem"
 mkdir -p "$BACKUP_MOUNT"
-if ! mount /dev/mapper/backup-vault "$BACKUP_MOUNT"; then
-    log "Error: Failed to mount drive"
-    send_alert "urgent" "Backup FAILED: could not mount drive"
-    exit 1
+if mountpoint -q "$BACKUP_MOUNT" 2>/dev/null; then
+    log "Already mounted (previous run?), continuing"
+else
+    if ! mount /dev/mapper/backup-vault "$BACKUP_MOUNT"; then
+        log "Error: Failed to mount drive"
+        send_alert "urgent" "Backup FAILED: could not mount drive"
+        exit 1
+    fi
+fi
+
+if ! check_disk_space "$BACKUP_MOUNT" "$MIN_DISK_SPACE_GB"; then
+    log "Continuing backup despite low disk space"
 fi
 
 TOTAL_FILES=0
 FAILED=0
+VERIFIED=0
 
 for SOURCE in $BACKUP_SOURCES; do
     if [ ! -d "$SOURCE" ]; then
@@ -104,6 +154,17 @@ for SOURCE in $BACKUP_SOURCES; do
         FILES=${FILES:-0}
         TOTAL_FILES=$((TOTAL_FILES + FILES))
         log "Copied $FILES files from $DIRNAME"
+
+        if [ "$VERIFY_BACKUP" = "true" ]; then
+            log "Verifying $DIRNAME..."
+            if rclone check "$SOURCE" "$DEST" --checksum 2>/dev/null; then
+                log "Verified $DIRNAME: checksums match"
+                VERIFIED=$((VERIFIED + 1))
+            else
+                log "Warning: Verification failed for $DIRNAME"
+                send_alert "high" "Backup verification failed for $DIRNAME"
+            fi
+        fi
     else
         log "Error: rclone failed for $SOURCE"
         FAILED=1
@@ -119,6 +180,6 @@ if [ "$FAILED" -eq 1 ]; then
     send_alert "high" "Backup completed with errors: ${TOTAL_FILES} files in ${MINUTES}m"
     exit 1
 else
-    log "Backup completed: ${TOTAL_FILES} files in ${MINUTES}m ${SECONDS}s"
+    log "Backup completed: ${TOTAL_FILES} files, ${VERIFIED} sources verified in ${MINUTES}m ${SECONDS}s"
     send_alert "default" "Backup completed: ${TOTAL_FILES} files in ${MINUTES}m"
 fi
