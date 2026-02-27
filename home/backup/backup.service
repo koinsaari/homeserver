@@ -1,0 +1,10 @@
+[Unit]
+Description=Encrypted backup to USB SSD
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup.sh
+
+[Install]
+WantedBy=multi-user.target
