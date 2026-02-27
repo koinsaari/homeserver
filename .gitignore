@@ -7,5 +7,6 @@ target
 .DS_Store
 home/homed/config.toml
 home/backup/backup.env
+home/services/traefik/traefik.yml
 vps/authelia/secrets/
 vps/authelia/users_database.yml
