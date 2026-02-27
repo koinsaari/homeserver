@@ -5,6 +5,8 @@ target
 **/*.rs.bk
 .idea/
 .DS_Store
+.claude
+.vscode
 home/homed/config.toml
 home/backup/backup.env
 home/services/traefik/traefik.yml

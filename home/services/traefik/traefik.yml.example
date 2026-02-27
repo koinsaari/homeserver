@@ -35,6 +35,7 @@ certificatesResolvers:
       storage: /certs/acme.json
       dnsChallenge:
         provider: cloudflare
+        delayBeforeCheck: 60s
         resolvers:
           - "1.1.1.1:53"
           - "8.8.8.8:53"
