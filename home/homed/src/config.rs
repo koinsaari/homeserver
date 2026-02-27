@@ -62,6 +62,12 @@ pub struct OrganizerConfig {
     pub video_extensions: Vec<String>,
     pub file_owner: Option<String>,
     pub file_group: Option<String>,
+    #[serde(default = "default_min_valid_year")]
+    pub min_valid_year: i32,
+}
+
+fn default_min_valid_year() -> i32 {
+    2000
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -137,6 +143,7 @@ mod tests {
                     video_extensions: vec![],
                     file_owner: None,
                     file_group: None,
+                    min_valid_year: 2000,
                 },
                 nextcloud: NextcloudConfig {
                     enabled: false,

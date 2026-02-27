@@ -12,6 +12,7 @@ photo_extensions = ["jpg", "jpeg", "png", "heic", "heif", "webp", "raw", "cr2", 
 video_extensions = ["mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm"]
 file_owner = "www-data"
 file_group = "www-data"
+min_valid_year = 2000
 
 [photos.nextcloud]
 enabled = true

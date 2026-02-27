@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Offset, TimeZone, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDateTime, Offset, TimeZone, Utc};
 use nom_exif::{EntryValue, ExifIter, ExifTag, MediaParser, MediaSource, TrackInfo, TrackInfoTag};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -102,9 +102,11 @@ async fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
 
 /// Extracts the best available datetime by EXIF/track metadata ->
 /// filename pattern -> file modification time.
+/// Dates before min_valid_year are considered invalid (e.g., 1970 Unix epoch).
 async fn extract_best_datetime(
     path: &Path,
     media_type: MediaType,
+    min_valid_year: i32,
 ) -> Option<DateTime<FixedOffset>> {
     let owned_path = path.to_path_buf();
     let exif_result = tokio::task::spawn_blocking(move || match media_type {
@@ -116,11 +118,15 @@ async fn extract_best_datetime(
     .flatten();
 
     if let Some(dt) = exif_result {
-        return Some(dt);
+        if dt.year() >= min_valid_year {
+            return Some(dt);
+        }
     }
 
     if let Some(dt) = extract_datetime_from_filename(path) {
-        return Some(dt);
+        if dt.year() >= min_valid_year {
+            return Some(dt);
+        }
     }
 
     fallback_to_mtime(path).await
@@ -163,7 +169,8 @@ pub async fn run_metadata(
             continue;
         };
 
-        let Some(datetime) = extract_best_datetime(&path, media_type).await else {
+        let Some(datetime) = extract_best_datetime(&path, media_type, config.min_valid_year).await
+        else {
             let _ = tx
                 .send(FileEvent::Failed {
                     path,
