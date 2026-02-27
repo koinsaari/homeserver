@@ -3,7 +3,7 @@ name: homed
 on:
   push:
     paths:
-      - "homed/**"
+      - "home/homed/**"
     branches:
       - main
 
@@ -25,13 +25,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: homed
+          workspaces: home/homed
 
       - name: Test
-        run: cargo test --manifest-path homed/Cargo.toml
+        run: cargo test --manifest-path home/homed/Cargo.toml
 
       - name: Build
-        run: cargo build --release --target x86_64-unknown-linux-musl --manifest-path homed/Cargo.toml
+        run: cargo build --release --target x86_64-unknown-linux-musl --manifest-path home/homed/Cargo.toml
 
       - name: Get version
         id: version
@@ -42,4 +42,4 @@ jobs:
         with:
           tag_name: homed-${{ steps.version.outputs.sha }}
           name: homed ${{ steps.version.outputs.sha }}
-          files: homed/target/x86_64-unknown-linux-musl/release/homed
+          files: home/homed/target/x86_64-unknown-linux-musl/release/homed
