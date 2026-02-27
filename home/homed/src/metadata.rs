@@ -93,16 +93,9 @@ fn extract_datetime_from_filename(path: &Path) -> Option<DateTime<FixedOffset>> 
     None
 }
 
-async fn fallback_to_mtime(path: &Path) -> Option<DateTime<FixedOffset>> {
-    let metadata = tokio::fs::metadata(path).await.ok()?;
-    let mtime = metadata.modified().ok()?;
-    let utc: DateTime<Utc> = mtime.into();
-    Some(Utc.fix().from_utc_datetime(&utc.naive_utc()))
-}
-
-/// Extracts the best available datetime by EXIF/track metadata ->
-/// filename pattern -> file modification time.
+/// Extracts datetime from EXIF/track metadata or filename pattern.
 /// Dates before min_valid_year are considered invalid (e.g., 1970 Unix epoch).
+/// Returns None if no valid date is found since the file should go to the unsorted folder.
 async fn extract_best_datetime(
     path: &Path,
     media_type: MediaType,
@@ -129,7 +122,7 @@ async fn extract_best_datetime(
         }
     }
 
-    fallback_to_mtime(path).await
+    None
 }
 
 #[derive(Debug, Error)]
@@ -169,25 +162,109 @@ pub async fn run_metadata(
             continue;
         };
 
-        let Some(datetime) = extract_best_datetime(&path, media_type, config.min_valid_year).await
-        else {
-            let _ = tx
-                .send(FileEvent::Failed {
-                    path,
-                    error: "Could not extract datetime".to_string(),
-                })
-                .await;
-            continue;
-        };
-
-        let _ = tx
-            .send(FileEvent::Enriched {
-                path,
-                media_type,
-                datetime,
-            })
-            .await;
+        match extract_best_datetime(&path, media_type, config.min_valid_year).await {
+            Some(datetime) => {
+                let _ = tx
+                    .send(FileEvent::Enriched {
+                        path,
+                        media_type,
+                        datetime,
+                    })
+                    .await;
+            }
+            None => {
+                let _ = tx.send(FileEvent::Unsorted { path, media_type }).await;
+            }
+        }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_filename_with_full_timestamp() {
+        let path = PathBuf::from("/photos/IMG_20260211_143022.jpg");
+        let dt = extract_datetime_from_filename(&path).unwrap();
+        assert_eq!(dt.year(), 2026);
+        assert_eq!(dt.month(), 2);
+        assert_eq!(dt.day(), 11);
+    }
+
+    #[test]
+    fn test_filename_with_date_only() {
+        let path = PathBuf::from("/photos/20260315.jpg");
+        let dt = extract_datetime_from_filename(&path).unwrap();
+        assert_eq!(dt.year(), 2026);
+        assert_eq!(dt.month(), 3);
+        assert_eq!(dt.day(), 15);
+    }
+
+    #[test]
+    fn test_filename_with_prefix_and_timestamp() {
+        let path = PathBuf::from("/photos/VID_20251225_180000.mp4");
+        let dt = extract_datetime_from_filename(&path).unwrap();
+        assert_eq!(dt.year(), 2025);
+        assert_eq!(dt.month(), 12);
+        assert_eq!(dt.day(), 25);
+    }
+
+    #[test]
+    fn test_filename_no_date_returns_none() {
+        let path = PathBuf::from("/photos/vacation_photo.jpg");
+        assert!(extract_datetime_from_filename(&path).is_none());
+    }
+
+    #[test]
+    fn test_filename_short_digits_returns_none() {
+        let path = PathBuf::from("/photos/IMG_123.jpg");
+        assert!(extract_datetime_from_filename(&path).is_none());
+    }
+
+    #[test]
+    fn test_filename_invalid_date_returns_none() {
+        let path = PathBuf::from("/photos/99999999_999999.jpg");
+        assert!(extract_datetime_from_filename(&path).is_none());
+    }
+
+    #[test]
+    fn test_min_valid_year_rejects_old_dates() {
+        let path = PathBuf::from("/photos/19700101_000000.jpg");
+        let dt = extract_datetime_from_filename(&path).unwrap();
+        assert_eq!(dt.year(), 1970);
+        assert!(dt.year() < 2000);
+    }
+
+    #[test]
+    fn test_min_valid_year_accepts_recent_dates() {
+        let path = PathBuf::from("/photos/20240615_120000.jpg");
+        let dt = extract_datetime_from_filename(&path).unwrap();
+        assert!(dt.year() >= 2000);
+    }
+
+    #[tokio::test]
+    async fn test_extract_best_datetime_rejects_pre_2000() {
+        let path = PathBuf::from("/photos/19991231_235959.jpg");
+        let result = extract_best_datetime(&path, MediaType::Photo, 2000).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_extract_best_datetime_accepts_post_2000() {
+        let path = PathBuf::from("/photos/IMG_20260211_143022.jpg");
+        let result = extract_best_datetime(&path, MediaType::Photo, 2000).await;
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().year(), 2026);
+    }
+
+    #[tokio::test]
+    async fn test_extract_best_datetime_no_date_returns_none() {
+        let path = PathBuf::from("/photos/random_photo.jpg");
+        let result = extract_best_datetime(&path, MediaType::Photo, 2000).await;
+        assert!(result.is_none());
+    }
 }

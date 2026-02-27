@@ -193,6 +193,13 @@ fn log_event(event: &FileEvent) {
         FileEvent::Cleaned { path, reason } => {
             info!(path = %path.display(), reason, "file cleaned");
         }
+        FileEvent::Unsorted { path, media_type } => {
+            info!(
+                path = %path.display(),
+                media_type = ?media_type,
+                "no valid date, moving to unsorted"
+            );
+        }
         FileEvent::Failed { path, error } => {
             warn!(path = %path.display(), error, "processing failed");
         }

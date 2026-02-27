@@ -32,6 +32,10 @@ pub enum FileEvent {
         media_type: MediaType,
         datetime: chrono::DateTime<chrono::FixedOffset>,
     },
+    Unsorted {
+        path: PathBuf,
+        media_type: MediaType,
+    },
     Organized {
         old_path: PathBuf,
         new_path: PathBuf,

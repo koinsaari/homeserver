@@ -64,6 +64,8 @@ pub struct OrganizerConfig {
     pub file_group: Option<String>,
     #[serde(default = "default_min_valid_year")]
     pub min_valid_year: i32,
+    #[serde(default)]
+    pub unsorted_dir: Option<PathBuf>,
 }
 
 fn default_min_valid_year() -> i32 {
@@ -144,6 +146,7 @@ mod tests {
                     file_owner: None,
                     file_group: None,
                     min_valid_year: 2000,
+                    unsorted_dir: None,
                 },
                 nextcloud: NextcloudConfig {
                     enabled: false,
