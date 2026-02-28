@@ -7,12 +7,17 @@ mod organizer;
 mod scanner;
 mod watcher;
 
+use std::time::Duration;
+
 use config::Config;
 use tokio::sync::{broadcast, mpsc};
+use tokio::time::Instant;
 use tracing::{error, info, warn};
 use watcher::FileEvent;
 
-use alerts::send_alert_for_event;
+use alerts::send_batch_alert;
+
+const BATCH_QUIET_PERIOD: Duration = Duration::from_secs(5);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,14 +38,53 @@ async fn main() -> anyhow::Result<()> {
 
     info!("pipelines running");
 
+    let mut organized_count = 0usize;
+    let mut unsorted_count = 0usize;
+    let mut failed_count = 0usize;
+    let mut last_event_time: Option<Instant> = None;
+
     loop {
+        let timeout = last_event_time
+            .map(|t| BATCH_QUIET_PERIOD.saturating_sub(t.elapsed()))
+            .unwrap_or(BATCH_QUIET_PERIOD);
+
         tokio::select! {
             Some(event) = output_rx.recv() => {
                 log_event(&event);
-                send_alert_for_event(&http_client, &alerts_config, &event).await;
+                match &event {
+                    FileEvent::Organized { .. } => organized_count += 1,
+                    FileEvent::Unsorted { .. } => unsorted_count += 1,
+                    FileEvent::Failed { .. } => failed_count += 1,
+                    _ => {}
+                }
+                last_event_time = Some(Instant::now());
+            }
+            _ = tokio::time::sleep(timeout), if last_event_time.is_some() => {
+                if last_event_time.map(|t| t.elapsed() >= BATCH_QUIET_PERIOD).unwrap_or(false) {
+                    send_batch_alert(
+                        &http_client,
+                        &alerts_config,
+                        organized_count,
+                        unsorted_count,
+                        failed_count,
+                    ).await;
+                    organized_count = 0;
+                    unsorted_count = 0;
+                    failed_count = 0;
+                    last_event_time = None;
+                }
             }
             _ = tokio::signal::ctrl_c() => {
                 info!("received shutdown signal, draining pipelines");
+                if organized_count > 0 || unsorted_count > 0 || failed_count > 0 {
+                    send_batch_alert(
+                        &http_client,
+                        &alerts_config,
+                        organized_count,
+                        unsorted_count,
+                        failed_count,
+                    ).await;
+                }
                 shutdown_tx.send(()).ok();
                 break;
             }

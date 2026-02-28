@@ -1,5 +1,4 @@
 use crate::config::AlertsConfig;
-use crate::watcher::FileEvent;
 use tracing::warn;
 
 pub async fn send_alert(
@@ -18,33 +17,33 @@ pub async fn send_alert(
     Ok(())
 }
 
-pub async fn send_alert_for_event(
+pub async fn send_batch_alert(
     client: &reqwest::Client,
     config: &AlertsConfig,
-    event: &FileEvent,
+    organized: usize,
+    unsorted: usize,
+    failed: usize,
 ) {
     if !config.enabled {
         return;
     }
 
-    let message = match event {
-        FileEvent::Organized { old_path, new_path } => {
-            let filename = old_path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| old_path.display().to_string());
-            let dest = new_path.display();
-            format!("Organized: {filename} → {dest}")
-        }
-        FileEvent::Failed { path, error } => {
-            let filename = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| path.display().to_string());
-            format!("Quarantined: {filename} — {error}")
-        }
-        _ => return,
-    };
+    if organized == 0 && unsorted == 0 && failed == 0 {
+        return;
+    }
+
+    let mut parts = Vec::new();
+    if organized > 0 {
+        parts.push(format!("{} organized", organized));
+    }
+    if unsorted > 0 {
+        parts.push(format!("{} unsorted", unsorted));
+    }
+    if failed > 0 {
+        parts.push(format!("{} failed", failed));
+    }
+
+    let message = format!("Photos: {}", parts.join(", "));
 
     if let Err(e) = send_alert(client, config, &message).await {
         warn!(error = %e, "failed to send ntfy alert");
